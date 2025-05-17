@@ -749,3 +749,22 @@ exports.getPublicUserProfile = async (req, res, next) => {
     next(err);
   }
 };
+
+// New function to get all users (for suggested users)
+exports.getUsers = async (req, res, next) => {
+  try {
+    const users = await User.find()
+      .select("_id username profilePicture followers")
+      .lean(); // Use lean() for better performance (returns plain JS object)
+
+    // Map users to include followersCount
+    const usersWithCounts = users.map((user) => ({
+      ...user,
+      followersCount: user.followers.length,
+    }));
+
+    res.json(usersWithCounts);
+  } catch (err) {
+    next(err);
+  }
+};

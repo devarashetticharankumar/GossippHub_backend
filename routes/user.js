@@ -127,6 +127,7 @@ const {
   followUser,
   unfollowUser,
   getPublicUserProfile,
+  getUsers, // Import the new controller function
 } = require("../controllers/userController");
 const jwt = require("jsonwebtoken");
 const multer = require("multer");
@@ -188,5 +189,6 @@ router.get("/:id/followers", authMiddleware, getFollowers);
 router.get("/:id/following", authMiddleware, getFollowing);
 router.post("/:id/follow", authMiddleware, followUser);
 router.post("/:id/unfollow", authMiddleware, unfollowUser);
+router.get("/", authMiddleware, getUsers); // New route for fetching all users
 
 module.exports = router;
