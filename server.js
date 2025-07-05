@@ -69,6 +69,7 @@ const errorHandler = require("./middleware/errorHandler");
 const { setupSocket } = require("./utils/socket");
 const userRoutes = require("./routes/user");
 const cloudinary = require("cloudinary").v2;
+const sitemapRouter = require("./routes/sitemap");
 
 const app = express();
 const server = http.createServer(app);
@@ -106,6 +107,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api", sponsoredAdRoutes);
+app.use("/", sitemapRouter);
 
 // Error Handling
 app.use(errorHandler);
