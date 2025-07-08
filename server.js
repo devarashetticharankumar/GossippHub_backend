@@ -221,7 +221,7 @@ cloudinary.config({
 
 // Middleware
 const corsOptions = {
-  origin: "https://gossiphub.in", // Match the frontend origin
+  origin: ["https://gossiphub.in", "http://localhost:5173"], // Match the frontend origin
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // Common HTTP methods
   credentials: true, // Enable CORS for cookies/sessions
   allowedHeaders: ["Content-Type", "Authorization"], // Allow these headers
