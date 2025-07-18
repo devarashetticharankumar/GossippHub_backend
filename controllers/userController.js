@@ -573,9 +573,218 @@
 
 //Today's update 13-05-2025
 
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// const User = require("../models/User");
+// const jwt = require("jsonwebtoken");
+// const cloudinary = require("cloudinary").v2;
+
+// // Get user profile
+// exports.getProfile = async (req, res, next) => {
+//   try {
+//     const user = await User.findById(req.user.userId).select("-password");
+//     if (!user) return res.status(404).json({ message: "User not found" });
+
+//     res.json({
+//       ...user._doc,
+//       followersCount: user.followers.length,
+//       followingCount: user.following.length,
+//     });
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+// // Update user profile
+// exports.updateProfile = async (req, res, next) => {
+//   try {
+//     const updates = {};
+//     if (req.body.username) updates.username = req.body.username;
+//     if (req.body.bio) updates.bio = req.body.bio;
+//     if (req.body.reactionStreak !== undefined)
+//       updates.reactionStreak = req.body.reactionStreak;
+//     if (req.body.lastReaction) updates.lastReaction = req.body.lastReaction;
+//     if (req.body.streakRewards) updates.streakRewards = req.body.streakRewards;
+
+//     if (req.file) {
+//       const fileBuffer = req.file.buffer;
+//       const base64String = fileBuffer.toString("base64");
+//       const fileUri = `data:${req.file.mimetype};base64,${base64String}`;
+
+//       let mediaUrl = "";
+//       try {
+//         const result = await cloudinary.uploader.upload(fileUri, {
+//           folder: "gossiphub/profile_pictures",
+//           width: 150,
+//           height: 150,
+//           crop: "fill",
+//         });
+//         mediaUrl = result.secure_url;
+//         updates.profilePicture = mediaUrl;
+//       } catch (uploadError) {
+//         return res.status(500).json({
+//           message: "Failed to upload image to Cloudinary",
+//           error: uploadError.message,
+//         });
+//       }
+//     }
+
+//     const user = await User.findByIdAndUpdate(
+//       req.user.userId,
+//       { $set: updates },
+//       { new: true, runValidators: true }
+//     ).select("-password");
+
+//     if (!user) return res.status(404).json({ message: "User not found" });
+//     res.json(user);
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+// // Get user's followers
+// exports.getFollowers = async (req, res, next) => {
+//   try {
+//     const user = await User.findById(req.params.id)
+//       .populate("followers", "username profilePicture")
+//       .select("followers");
+//     if (!user) {
+//       return res.status(404).json({ message: "User not found" });
+//     }
+//     res.json(user.followers);
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+// // Get user's following
+// exports.getFollowing = async (req, res, next) => {
+//   try {
+//     const user = await User.findById(req.params.id)
+//       .populate("following", "username profilePicture")
+//       .select("following");
+//     if (!user) {
+//       return res.status(404).json({ message: "User not found" });
+//     }
+//     res.json(user.following);
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+// // Follow a user
+// exports.followUser = async (req, res, next) => {
+//   try {
+//     const userToFollow = await User.findById(req.params.id);
+//     const currentUser = await User.findById(req.user.userId);
+
+//     if (!userToFollow || !currentUser) {
+//       return res.status(404).json({ message: "User not found" });
+//     }
+
+//     if (userToFollow._id.equals(currentUser._id)) {
+//       return res.status(400).json({ message: "You cannot follow yourself" });
+//     }
+
+//     if (currentUser.following.includes(userToFollow._id)) {
+//       return res.status(400).json({ message: "You already follow this user" });
+//     }
+
+//     currentUser.following.push(userToFollow._id);
+//     userToFollow.followers.push(currentUser._id);
+
+//     await currentUser.save();
+//     await userToFollow.save();
+
+//     res.json({ message: "User followed successfully" });
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+// // Unfollow a user
+// exports.unfollowUser = async (req, res, next) => {
+//   try {
+//     const userToUnfollow = await User.findById(req.params.id);
+//     const currentUser = await User.findById(req.user.userId);
+
+//     if (!userToUnfollow || !currentUser) {
+//       return res.status(404).json({ message: "User not found" });
+//     }
+
+//     if (!currentUser.following.includes(userToUnfollow._id)) {
+//       return res.status(400).json({ message: "You do not follow this user" });
+//     }
+
+//     currentUser.following = currentUser.following.filter(
+//       (id) => !id.equals(userToUnfollow._id)
+//     );
+//     userToUnfollow.followers = userToUnfollow.followers.filter(
+//       (id) => !id.equals(currentUser._id)
+//     );
+
+//     await currentUser.save();
+//     await userToUnfollow.save();
+
+//     res.json({ message: "User unfollowed successfully" });
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+// // Get public user profile by ID
+// exports.getPublicUserProfile = async (req, res, next) => {
+//   try {
+//     const user = await User.findById(req.params.id)
+//       .select("-password")
+//       .populate("followers", "username profilePicture")
+//       .populate("following", "username profilePicture");
+//     if (!user) {
+//       return res.status(404).json({ message: "User not found" });
+//     }
+//     res.json({
+//       ...user._doc,
+//       followersCount: user.followers.length,
+//       followingCount: user.following.length,
+//     });
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+// // New function to get all users (for suggested users)
+// exports.getUsers = async (req, res, next) => {
+//   try {
+//     const users = await User.find()
+//       .select("_id username profilePicture followers")
+//       .lean(); // Use lean() for better performance (returns plain JS object)
+
+//     // Map users to include followersCount
+//     const usersWithCounts = users.map((user) => ({
+//       ...user,
+//       followersCount: user.followers.length,
+//     }));
+
+//     res.json(usersWithCounts);
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////vps lo deploy cheyalsina code:
+
 const User = require("../models/User");
 const jwt = require("jsonwebtoken");
-const cloudinary = require("cloudinary").v2;
+const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
+
+// Initialize S3 Client
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+});
 
 // Get user profile
 exports.getProfile = async (req, res, next) => {
@@ -605,23 +814,27 @@ exports.updateProfile = async (req, res, next) => {
     if (req.body.streakRewards) updates.streakRewards = req.body.streakRewards;
 
     if (req.file) {
-      const fileBuffer = req.file.buffer;
-      const base64String = fileBuffer.toString("base64");
-      const fileUri = `data:${req.file.mimetype};base64,${base64String}`;
-
-      let mediaUrl = "";
+      const fileName = `gossiphub/profile_pictures/original/${Date.now()}-${
+        req.file.originalname
+      }`;
       try {
-        const result = await cloudinary.uploader.upload(fileUri, {
-          folder: "gossiphub/profile_pictures",
-          width: 150,
-          height: 150,
-          crop: "fill",
-        });
-        mediaUrl = result.secure_url;
-        updates.profilePicture = mediaUrl;
+        const params = {
+          Bucket: process.env.AWS_S3_BUCKET,
+          Key: fileName,
+          Body: req.file.buffer,
+          ContentType: req.file.mimetype,
+        };
+        const command = new PutObjectCommand(params);
+        await s3Client.send(command);
+        // The resized image URL will be generated by Lambda and stored in the User model
+        updates.profilePicture = `https://${process.env.AWS_S3_BUCKET}.s3.${
+          process.env.AWS_REGION
+        }.amazonaws.com/gossiphub/profile_pictures/resized/${Date.now()}-${
+          req.file.originalname
+        }`;
       } catch (uploadError) {
         return res.status(500).json({
-          message: "Failed to upload image to Cloudinary",
+          message: "Failed to upload image to S3",
           error: uploadError.message,
         });
       }
@@ -640,7 +853,7 @@ exports.updateProfile = async (req, res, next) => {
   }
 };
 
-// Get user's followers
+// Rest of your user.js remains unchanged
 exports.getFollowers = async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id)
@@ -655,7 +868,6 @@ exports.getFollowers = async (req, res, next) => {
   }
 };
 
-// Get user's following
 exports.getFollowing = async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id)
@@ -670,7 +882,6 @@ exports.getFollowing = async (req, res, next) => {
   }
 };
 
-// Follow a user
 exports.followUser = async (req, res, next) => {
   try {
     const userToFollow = await User.findById(req.params.id);
@@ -700,7 +911,6 @@ exports.followUser = async (req, res, next) => {
   }
 };
 
-// Unfollow a user
 exports.unfollowUser = async (req, res, next) => {
   try {
     const userToUnfollow = await User.findById(req.params.id);
@@ -730,7 +940,6 @@ exports.unfollowUser = async (req, res, next) => {
   }
 };
 
-// Get public user profile by ID
 exports.getPublicUserProfile = async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id)
@@ -750,14 +959,12 @@ exports.getPublicUserProfile = async (req, res, next) => {
   }
 };
 
-// New function to get all users (for suggested users)
 exports.getUsers = async (req, res, next) => {
   try {
     const users = await User.find()
       .select("_id username profilePicture followers")
-      .lean(); // Use lean() for better performance (returns plain JS object)
+      .lean();
 
-    // Map users to include followersCount
     const usersWithCounts = users.map((user) => ({
       ...user,
       followersCount: user.followers.length,
