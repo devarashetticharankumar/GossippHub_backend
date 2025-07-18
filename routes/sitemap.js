@@ -119,7 +119,7 @@ sitemapRouter.get("/sitemap.xml", async (req, res) => {
         .up()
         .ele("lastmod", page.updatedAt)
         .up()
-        .ele("changefreq", "monthly")
+        .ele("changefreq", "daily")
         .up()
         .ele("priority", "1.0")
         .up();
