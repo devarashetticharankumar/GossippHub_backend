@@ -55,6 +55,8 @@ const userSchema = new mongoose.Schema({
   streakRewards: { type: [String], default: [] }, // Array of reward names
   followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // New field for blocking
+  onlineStatus: { type: Boolean, default: false }, // Optional online status
 });
 
 module.exports = mongoose.model("User", userSchema);

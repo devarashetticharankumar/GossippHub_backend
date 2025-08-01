@@ -14,6 +14,19 @@ const reportSchema = new mongoose.Schema({
     default: "pending",
   },
   createdAt: { type: Date, default: Date.now },
+  ////////////////////////////////////////////////////////////////////
+  messageId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Message",
+    required: true,
+  },
+  reporter: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+  },
+  reason: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now },
 });
 
 module.exports = mongoose.model("Report", reportSchema);
