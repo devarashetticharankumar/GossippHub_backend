@@ -853,10 +853,6 @@ exports.getProfile = async (req, res, next) => {
 //   }
 // };
 
-<<<<<<< HEAD
-// Update user profile
-=======
->>>>>>> 1ccd5949c03b4212d7cfed25e233168d55aa75d3
 exports.updateProfile = async (req, res, next) => {
   try {
     const updates = {};
@@ -902,7 +898,6 @@ exports.updateProfile = async (req, res, next) => {
     next(err);
   }
 };
-
 
 // Rest of your user.js remains unchanged
 exports.getFollowers = async (req, res, next) => {
