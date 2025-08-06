@@ -147,10 +147,8 @@ sitemapRouter.get("/sitemap.xml", async (req, res) => {
 
     // Add API-related static pages
     const apiStaticPages = [
-      { url: "/api/auth", updatedAt: new Date().toISOString() },
       { url: "/api/posts", updatedAt: new Date().toISOString() },
       { url: "/api/admin", updatedAt: new Date().toISOString() },
-      { url: "/api/notifications", updatedAt: new Date().toISOString() },
       { url: "/api/users", updatedAt: new Date().toISOString() },
     ];
     apiStaticPages.forEach((page) => {
