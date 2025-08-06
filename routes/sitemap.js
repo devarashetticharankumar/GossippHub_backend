@@ -146,23 +146,23 @@ sitemapRouter.get("/sitemap.xml", async (req, res) => {
     });
 
     // Add API-related static pages
-    const apiStaticPages = [
-      { url: "/api/posts", updatedAt: new Date().toISOString() },
-      { url: "/api/admin", updatedAt: new Date().toISOString() },
-      { url: "/api/users", updatedAt: new Date().toISOString() },
-    ];
-    apiStaticPages.forEach((page) => {
-      sitemap
-        .ele("url")
-        .ele("loc", `${baseUrl}${page.url}`)
-        .up()
-        .ele("lastmod", page.updatedAt)
-        .up()
-        .ele("changefreq", "weekly")
-        .up()
-        .ele("priority", "0.6")
-        .up();
-    });
+    // const apiStaticPages = [
+    //   { url: "/api/posts", updatedAt: new Date().toISOString() },
+    //   { url: "/api/admin", updatedAt: new Date().toISOString() },
+    //   { url: "/api/users", updatedAt: new Date().toISOString() },
+    // ];
+    // apiStaticPages.forEach((page) => {
+    //   sitemap
+    //     .ele("url")
+    //     .ele("loc", `${baseUrl}${page.url}`)
+    //     .up()
+    //     .ele("lastmod", page.updatedAt)
+    //     .up()
+    //     .ele("changefreq", "weekly")
+    //     .up()
+    //     .ele("priority", "0.6")
+    //     .up();
+    // });
 
     res.header("Content-Type", "application/xml");
     res.send(sitemap.end({ pretty: true }));
