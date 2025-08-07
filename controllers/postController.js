@@ -1356,6 +1356,109 @@ exports.deletePost = async (req, res, next) => {
   }
 };
 
+exports.updatePost = async (req, res, next) => {
+  const { postId } = req.params;
+  const { title, description, isAnonymous, category } = req.body;
+  const file = req.file;
+
+  try {
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+
+    const userId = typeof req.user === "object" ? req.user._id : req.user;
+    if (post.author.toString() !== userId.toString()) {
+      return res
+        .status(403)
+        .json({ message: "Unauthorized to update this post" });
+    }
+
+    // Validate content
+    if (!filterContent(description) || (title && !filterContent(title))) {
+      return res
+        .status(400)
+        .json({ message: "Inappropriate content detected" });
+    }
+
+    // Update fields
+    post.title = title || post.title;
+    post.description = description || post.description;
+    post.isAnonymous =
+      isAnonymous !== undefined ? isAnonymous : post.isAnonymous;
+    post.category = category || post.category;
+    post.slug = await generateSlug(title || post.title);
+
+    // Handle media update
+    let mediaUrl = post.media;
+    if (file) {
+      // Delete old media from S3 if it exists
+      if (post.media) {
+        const oldKey = post.media.split(
+          `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/`
+        )[1];
+        if (oldKey) {
+          try {
+            await s3Client.send(
+              new DeleteObjectCommand({
+                Bucket: process.env.AWS_S3_BUCKET,
+                Key: oldKey,
+              })
+            );
+          } catch (deleteError) {
+            console.error(
+              "Error deleting old media from S3:",
+              deleteError.message
+            );
+          }
+        }
+      }
+
+      // Upload new media
+      const isVideo = file.mimetype.startsWith("video/");
+      const fileExtension = file.originalname.split(".").pop();
+      const fileName = `gossiphub/uploads/${Date.now()}-${file.originalname}`;
+
+      try {
+        const params = {
+          Bucket: process.env.AWS_S3_BUCKET,
+          Key: fileName,
+          Body: file.buffer,
+          ContentType: file.mimetype,
+        };
+        const command = new PutObjectCommand(params);
+        await s3Client.send(command);
+        mediaUrl = `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
+      } catch (uploadError) {
+        return res.status(500).json({
+          message: "Failed to upload media to S3",
+          error: uploadError.message,
+        });
+      } finally {
+        // Clean up the temporary file
+        try {
+          if (file.path) {
+            fs.unlinkSync(file.path);
+          }
+        } catch (fsError) {
+          console.error("Error deleting temporary file:", fsError.message);
+        }
+      }
+    }
+
+    post.media = mediaUrl;
+    await post.save();
+
+    const populatedPost = await Post.findById(post._id).populate(
+      "author",
+      "email username"
+    );
+    res.json(populatedPost);
+  } catch (err) {
+    next(err);
+  }
+};
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // const mongoose = require("mongoose");
 // const Post = require("../models/post");

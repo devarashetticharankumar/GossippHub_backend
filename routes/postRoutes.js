@@ -85,6 +85,7 @@ const {
   addComment,
   addCommentReaction,
   deletePost,
+  updatePost,
 } = require("../controllers/postController");
 const { auth } = require("../middleware/authMiddleware");
 
@@ -96,6 +97,7 @@ const router = express.Router();
 
 router.get("/", getPosts);
 router.post("/", [auth, upload.single("media")], createPost);
+router.put("/:postId", [auth, upload.single("media")], updatePost);
 router.post("/:postId/reaction", auth, addReaction);
 router.post("/:postId/comment", auth, addComment);
 router.post("/:postId/comment/:commentId/reaction", auth, addCommentReaction);
