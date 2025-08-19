@@ -1128,6 +1128,35 @@ exports.getPosts = async (req, res, next) => {
   }
 };
 
+exports.getPostById = async (req, res, next) => {
+  const { postId } = req.params;
+  try {
+    const post = await Post.findById(postId)
+      .populate("author", "email username")
+      .populate("comments.author", "email username");
+
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+
+    // Ensure the post is not flagged unless the user is the author
+    const userId = typeof req.user === "object" ? req.user._id : req.user;
+    if (
+      post.isFlagged &&
+      (!userId || post.author.toString() !== userId.toString())
+    ) {
+      return res
+        .status(403)
+        .json({ message: "Post is flagged and cannot be accessed" });
+    }
+
+    res.json(post);
+  } catch (err) {
+    console.error("Error in getPostById:", err);
+    next(err);
+  }
+};
+
 exports.addReaction = async (req, res, next) => {
   const { postId } = req.params;
   const { type } = req.body;

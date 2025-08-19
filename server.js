@@ -350,6 +350,7 @@ const errorHandler = require("./middleware/errorHandler");
 const { setupSocket } = require("./utils/socket");
 const userRoutes = require("./routes/user");
 const chatRoutes = require("./routes/chatRoutes");
+const storyRoutes = require("./routes/storyRoutes");
 const sitemapRouter = require("./routes/sitemap");
 
 const app = express();
@@ -386,6 +387,7 @@ setupSocket(io);
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/posts", postRoutes);
+app.use("/api", storyRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/users", userRoutes);

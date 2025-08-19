@@ -57,6 +57,8 @@ const userSchema = new mongoose.Schema({
   following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // New field for blocking
   onlineStatus: { type: Boolean, default: false }, // Optional online status
+  // Story-related fields
+  storyCount: { type: Number, default: 0 }, // Track number of stories posted
 });
 
 module.exports = mongoose.model("User", userSchema);

@@ -86,6 +86,7 @@ const {
   addCommentReaction,
   deletePost,
   updatePost,
+  getPostById,
 } = require("../controllers/postController");
 const { auth } = require("../middleware/authMiddleware");
 
@@ -96,6 +97,8 @@ const upload = multer({ storage });
 const router = express.Router();
 
 router.get("/", getPosts);
+router.get("/:postId", getPostById);
+
 router.post("/", [auth, upload.single("media")], createPost);
 router.put("/:postId", [auth, upload.single("media")], updatePost);
 router.post("/:postId/reaction", auth, addReaction);
