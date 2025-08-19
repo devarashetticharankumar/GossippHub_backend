@@ -47,7 +47,9 @@ const userSchema = new mongoose.Schema({
   bio: { type: String, default: "" },
   profilePicture: { type: String, default: "" },
   isAdmin: { type: Boolean, default: false },
-  funMeter: { type: Number, default: 0 },
+  funMeter: { type: Number, default: 0 }, // Used as XP for leveling
+  level: { type: Number, default: 1 }, // New field for user level
+  badges: [{ type: String }], // New field for earned badges
   createdAt: { type: Date, default: Date.now },
   // Reaction streak fields
   reactionStreak: { type: Number, default: 0 },

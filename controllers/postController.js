@@ -1048,6 +1048,75 @@ const s3Client = new S3Client({
   },
 });
 
+// exports.createPost = async (req, res, next) => {
+//   const { title, description, isAnonymous, category } = req.body;
+//   const file = req.file;
+//   try {
+//     // Validate content
+//     if (!filterContent(description) || (title && !filterContent(title))) {
+//       return res
+//         .status(400)
+//         .json({ message: "Inappropriate content detected" });
+//     }
+
+//     const slug = await generateSlug(title);
+//     let mediaUrl = null;
+
+//     if (file) {
+//       const isVideo = file.mimetype.startsWith("video/");
+//       const fileExtension = file.originalname.split(".").pop();
+//       const fileName = `gossiphub/uploads/${Date.now()}-${file.originalname}`;
+
+//       try {
+//         const params = {
+//           Bucket: process.env.AWS_S3_BUCKET,
+//           Key: fileName,
+//           Body: file.buffer,
+//           ContentType: file.mimetype,
+//         };
+//         const command = new PutObjectCommand(params);
+//         await s3Client.send(command);
+//         mediaUrl = `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
+//       } catch (uploadError) {
+//         return res.status(500).json({
+//           message: "Failed to upload media to S3",
+//           error: uploadError.message,
+//         });
+//       } finally {
+//         // Clean up the temporary file
+//         try {
+//           if (file.path) {
+//             fs.unlinkSync(file.path);
+//           }
+//         } catch (fsError) {
+//           console.error("Error deleting temporary file:", fsError.message);
+//         }
+//       }
+//     }
+
+//     const post = new Post({
+//       title,
+//       description,
+//       slug,
+//       author: req.user,
+//       isAnonymous,
+//       category,
+//       media: mediaUrl,
+//     });
+//     await post.save();
+
+//     const populatedPost = await Post.findById(post._id).populate(
+//       "author",
+//       "email username"
+//     );
+//     res.json(populatedPost);
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+// Rest of your postRoutes.js remains unchanged
+
 exports.createPost = async (req, res, next) => {
   const { title, description, isAnonymous, category } = req.body;
   const file = req.file;
@@ -1063,10 +1132,8 @@ exports.createPost = async (req, res, next) => {
     let mediaUrl = null;
 
     if (file) {
-      const isVideo = file.mimetype.startsWith("video/");
       const fileExtension = file.originalname.split(".").pop();
       const fileName = `gossiphub/uploads/${Date.now()}-${file.originalname}`;
-
       try {
         const params = {
           Bucket: process.env.AWS_S3_BUCKET,
@@ -1083,11 +1150,8 @@ exports.createPost = async (req, res, next) => {
           error: uploadError.message,
         });
       } finally {
-        // Clean up the temporary file
         try {
-          if (file.path) {
-            fs.unlinkSync(file.path);
-          }
+          if (file.path) fs.unlinkSync(file.path);
         } catch (fsError) {
           console.error("Error deleting temporary file:", fsError.message);
         }
@@ -1105,6 +1169,23 @@ exports.createPost = async (req, res, next) => {
     });
     await post.save();
 
+    // Update user's funMeter and level
+    const userId = typeof req.user === "object" ? req.user._id : req.user;
+    const user = await User.findById(userId);
+    if (user) {
+      user.funMeter += 50; // Award 50 points for creating a post
+      user.level = Math.floor(user.funMeter / 100) + 1; // Level up every 100 points
+
+      // Award badges based on milestones
+      if (user.funMeter >= 100 && !user.badges.includes("Newbie")) {
+        user.badges.push("Newbie");
+      }
+      if (user.funMeter >= 500 && !user.badges.includes("Gossip Pro")) {
+        user.badges.push("Gossip Pro");
+      }
+      await user.save();
+    }
+
     const populatedPost = await Post.findById(post._id).populate(
       "author",
       "email username"
@@ -1115,7 +1196,6 @@ exports.createPost = async (req, res, next) => {
   }
 };
 
-// Rest of your postRoutes.js remains unchanged
 exports.getPosts = async (req, res, next) => {
   try {
     const posts = await Post.find({ isFlagged: false })
@@ -1156,6 +1236,156 @@ exports.getPostById = async (req, res, next) => {
     next(err);
   }
 };
+
+// exports.addReaction = async (req, res, next) => {
+//   const { postId } = req.params;
+//   const { type } = req.body;
+
+//   try {
+//     const validReactions = ["like", "love", "laugh", "sad"];
+//     if (!validReactions.includes(type)) {
+//       return res.status(400).json({
+//         message:
+//           "Invalid reaction type. Use 'like', 'love', 'laugh', or 'sad'.",
+//       });
+//     }
+
+//     if (!req.user) {
+//       return res
+//         .status(401)
+//         .json({ message: "User must be logged in to add a reaction" });
+//     }
+
+//     const userId = typeof req.user === "object" ? req.user._id : req.user;
+//     if (!userId) {
+//       return res.status(400).json({ message: "User ID is required" });
+//     }
+
+//     const post = await Post.findById(postId);
+//     if (!post) {
+//       return res.status(404).json({ message: "Post not found" });
+//     }
+
+//     const user = await User.findById(userId);
+//     if (!user) {
+//       return res.status(404).json({ message: "User not found" });
+//     }
+
+//     post.likes = Array.isArray(post.likes) ? post.likes : [];
+//     post.loves = Array.isArray(post.loves) ? post.loves : [];
+//     post.laughs = Array.isArray(post.laughs) ? post.laughs : [];
+//     post.sads = Array.isArray(post.sads) ? post.sads : [];
+
+//     const userIdStr = userId.toString();
+//     const hasReacted = {
+//       like: post.likes.some((id) => id && id.toString() === userIdStr),
+//       love: post.loves.some((id) => id && id.toString() === userIdStr),
+//       laugh: post.laughs.some((id) => id && id.toString() === userIdStr),
+//       sad: post.sads.some((id) => id && id.toString() === userIdStr),
+//     };
+
+//     await Post.updateOne(
+//       { _id: postId },
+//       {
+//         $pull: {
+//           likes: userId,
+//           loves: userId,
+//           laughs: userId,
+//           sads: userId,
+//         },
+//       }
+//     );
+
+//     if (!hasReacted[type]) {
+//       await Post.updateOne(
+//         { _id: postId },
+//         { $addToSet: { [type + "s"]: userId } }
+//       );
+
+//       const today = new Date();
+//       const todayStr = today.toISOString().split("T")[0];
+//       let newStreak = user.reactionStreak;
+//       let newRewards = [...(user.streakRewards || [])];
+
+//       if (!user.lastReaction) {
+//         newStreak = 1;
+//       } else {
+//         const lastReaction = new Date(user.lastReaction);
+//         const lastReactionStr = lastReaction.toISOString().split("T")[0];
+//         const diffDays = Math.floor(
+//           (today - lastReaction) / (1000 * 60 * 60 * 24)
+//         );
+
+//         if (lastReactionStr !== todayStr) {
+//           if (diffDays === 1) {
+//             newStreak = user.reactionStreak + 1;
+//           } else if (diffDays > 1) {
+//             newStreak = 1;
+//             newRewards = [];
+//           }
+//         }
+//       }
+
+//       if (newStreak > 0 && newStreak !== user.reactionStreak) {
+//         const dailyReward = `Day ${newStreak} Streak`;
+//         if (!newRewards.includes(dailyReward)) {
+//           newRewards = newRewards.filter(
+//             (reward) => !reward.startsWith("Day ")
+//           );
+//           newRewards.push(dailyReward);
+//         }
+
+//         if (newStreak % 5 === 0) {
+//           const milestoneReward = `Reaction Streak ${newStreak}`;
+//           if (!newRewards.includes(milestoneReward)) {
+//             newRewards.push(milestoneReward);
+//           }
+//         }
+//       }
+
+//       user.reactionStreak = newStreak;
+//       user.lastReaction = todayStr;
+//       user.streakRewards = newRewards;
+//       await user.save();
+//     }
+
+//     const updatedPost = await Post.findById(postId);
+//     res.json({
+//       likes: updatedPost.likes,
+//       loves: updatedPost.loves,
+//       laughs: updatedPost.laughs,
+//       sads: updatedPost.sads,
+//     });
+//   } catch (err) {
+//     console.error("Error in addReaction:", err);
+//     next(err);
+//   }
+// };
+
+// exports.addComment = async (req, res, next) => {
+//   const { postId } = req.params;
+//   const { text } = req.body;
+//   try {
+//     if (!filterContent(text)) {
+//       return res
+//         .status(400)
+//         .json({ message: "Inappropriate comment detected" });
+//     }
+
+//     const post = await Post.findById(postId);
+//     if (!post) return res.status(404).json({ message: "Post not found" });
+
+//     post.comments.push({ text, author: req.user });
+//     await post.save();
+
+//     const updatedPost = await Post.findById(postId)
+//       .populate("author", "email username")
+//       .populate("comments.author", "email username");
+//     res.json(updatedPost);
+//   } catch (err) {
+//     next(err);
+//   }
+// };
 
 exports.addReaction = async (req, res, next) => {
   const { postId } = req.params;
@@ -1221,6 +1451,21 @@ exports.addReaction = async (req, res, next) => {
         { _id: postId },
         { $addToSet: { [type + "s"]: userId } }
       );
+
+      // Update funMeter, level, and badges
+      user.funMeter += 10; // Award 10 points for a reaction
+      user.level = Math.floor(user.funMeter / 100) + 1; // Level up every 100 points
+
+      // Award badges based on milestones
+      if (user.funMeter >= 100 && !user.badges.includes("Newbie")) {
+        user.badges.push("Newbie");
+      }
+      if (user.funMeter >= 500 && !user.badges.includes("Gossip Pro")) {
+        user.badges.push("Gossip Pro");
+      }
+      if (user.funMeter >= 1000 && !user.badges.includes("Trendsetter")) {
+        user.badges.push("Trendsetter");
+      }
 
       const today = new Date();
       const todayStr = today.toISOString().split("T")[0];
@@ -1295,8 +1540,28 @@ exports.addComment = async (req, res, next) => {
     const post = await Post.findById(postId);
     if (!post) return res.status(404).json({ message: "Post not found" });
 
-    post.comments.push({ text, author: req.user });
+    const userId = typeof req.user === "object" ? req.user._id : req.user;
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    post.comments.push({ text, author: userId });
     await post.save();
+
+    // Update funMeter, level, and badges
+    user.funMeter += 20; // Award 20 points for a comment
+    user.level = Math.floor(user.funMeter / 100) + 1; // Level up every 100 points
+
+    // Award badges based on milestones
+    if (user.funMeter >= 100 && !user.badges.includes("Newbie")) {
+      user.badges.push("Newbie");
+    }
+    if (user.funMeter >= 500 && !user.badges.includes("Gossip Pro")) {
+      user.badges.push("Gossip Pro");
+    }
+    if (user.funMeter >= 1000 && !user.badges.includes("Trendsetter")) {
+      user.badges.push("Trendsetter");
+    }
+    await user.save();
 
     const updatedPost = await Post.findById(postId)
       .populate("author", "email username")

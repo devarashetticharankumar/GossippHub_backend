@@ -796,6 +796,8 @@ exports.getProfile = async (req, res, next) => {
       ...user._doc,
       followersCount: user.followers.length,
       followingCount: user.following.length,
+      level: user.level,
+      badges: user.badges,
     });
   } catch (err) {
     next(err);
