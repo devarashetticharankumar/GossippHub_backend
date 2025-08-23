@@ -76,6 +76,38 @@
 // module.exports = router;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////#hastag impemented code
+// const express = require("express");
+// const multer = require("multer");
+// const {
+//   createPost,
+//   getPosts,
+//   addReaction,
+//   addComment,
+//   addCommentReaction,
+//   deletePost,
+//   updatePost,
+//   getPostById,
+// } = require("../controllers/postController");
+// const { auth } = require("../middleware/authMiddleware");
+
+// // Use memoryStorage for multer to access file.buffer
+// const storage = multer.memoryStorage();
+// const upload = multer({ storage });
+
+// const router = express.Router();
+
+// router.get("/", getPosts);
+// router.get("/:postId", getPostById);
+
+// router.post("/", [auth, upload.single("media")], createPost);
+// router.put("/:postId", [auth, upload.single("media")], updatePost);
+// router.post("/:postId/reaction", auth, addReaction);
+// router.post("/:postId/comment", auth, addComment);
+// router.post("/:postId/comment/:commentId/reaction", auth, addCommentReaction);
+// router.delete("/:postId", auth, deletePost);
+
+// module.exports = router;
+
 const express = require("express");
 const multer = require("multer");
 const {
@@ -87,18 +119,21 @@ const {
   deletePost,
   updatePost,
   getPostById,
+  getPostsByHashtag,
+  getHashtags,
 } = require("../controllers/postController");
 const { auth } = require("../middleware/authMiddleware");
 
-// Use memoryStorage for multer to access file.buffer
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
 const router = express.Router();
 
+// Specific routes before dynamic routes
+router.get("/hashtags", getHashtags);
+router.get("/hashtag/:hashtag", getPostsByHashtag);
 router.get("/", getPosts);
 router.get("/:postId", getPostById);
-
 router.post("/", [auth, upload.single("media")], createPost);
 router.put("/:postId", [auth, upload.single("media")], updatePost);
 router.post("/:postId/reaction", auth, addReaction);
