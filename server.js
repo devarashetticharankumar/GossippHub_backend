@@ -358,7 +358,7 @@ const server = http.createServer(app);
 
 // Consolidated CORS options
 const corsOptions = {
-  origin: ["https://gossiphub.in", "http://localhost:5173"],
+  origin: "*",
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
   credentials: true,
   allowedHeaders: ["Content-Type", "Authorization"],
@@ -392,7 +392,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api", sponsoredAdRoutes);
-app.use("/api/chats", chatRoutes);
+app.use("/api/chat", chatRoutes.router);
 app.use("/", sitemapRouter);
 
 // Error Handling
