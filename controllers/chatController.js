@@ -1,11 +1,12 @@
-// const mongoose = require("mongoose");
-// const Message = require("../models/Message");
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// const { Message, ChatRoom, DirectMessage } = require("../models/chat");
 // const User = require("../models/User");
-// const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
-// const sanitizeHtml = require("sanitize-html");
-// const fs = require("fs");
+// const {
+//   S3Client,
+//   PutObjectCommand,
+//   DeleteObjectCommand,
+// } = require("@aws-sdk/client-s3");
 
-// // Initialize S3 Client
 // const s3Client = new S3Client({
 //   region: process.env.AWS_REGION,
 //   credentials: {
@@ -14,173 +15,97 @@
 //   },
 // });
 
-// exports.getChats = async (req, res, next) => {
+// exports.createChatRoom = async (req, res, next) => {
 //   try {
-//     if (!req.user || !req.user.userId) {
-//       return res.status(401).json({ message: "User must be authenticated" });
+//     const { name, isPublic, members } = req.body;
+//     const creatorId = req.user.userId;
+
+//     const user = await User.findById(creatorId);
+//     if (!user) return res.status(404).json({ message: "User not found" });
+
+//     if (!isPublic && members) {
+//       const invalidMembers = members.filter(
+//         (memberId) =>
+//           !user.followers.includes(memberId) &&
+//           !user.following.includes(memberId)
+//       );
+//       if (invalidMembers.length > 0) {
+//         return res.status(400).json({
+//           message: "All members must be followers or following",
+//         });
+//       }
 //     }
 
-//     const userId = mongoose.Types.ObjectId.isValid(req.user.userId)
-//       ? new mongoose.Types.ObjectId(req.user.userId)
-//       : null;
-//     if (!userId) {
-//       return res.status(400).json({ message: "Invalid user ID" });
-//     }
+//     const chatRoom = new ChatRoom({
+//       name,
+//       isPublic,
+//       creator: creatorId,
+//       members: isPublic ? [] : [creatorId, ...(members || [])],
+//     });
 
-//     const chats = await Message.aggregate([
-//       { $match: { $or: [{ sender: userId }, { receiver: userId }] } },
-//       {
-//         $group: {
-//           _id: {
-//             $cond: [{ $eq: ["$sender", userId] }, "$receiver", "$sender"],
-//           },
-//           lastMessage: { $last: "$content" },
-//           timestamp: { $last: "$createdAt" },
-//           unreadCount: {
-//             $sum: {
-//               $cond: [
-//                 {
-//                   $and: [
-//                     { $eq: ["$receiver", userId] },
-//                     { $eq: ["$isRead", false] },
-//                   ],
-//                 },
-//                 1,
-//                 0,
-//               ],
-//             },
-//           },
-//         },
-//       },
-//       {
-//         $lookup: {
-//           from: "users",
-//           localField: "_id",
-//           foreignField: "_id",
-//           as: "user",
-//         },
-//       },
-//       { $unwind: "$user" },
-//       {
-//         $project: {
-//           _id: 1,
-//           lastMessage: 1,
-//           timestamp: 1,
-//           unreadCount: 1,
-//           user: {
-//             _id: 1,
-//             username: 1,
-//             profilePicture: 1,
-//             email: 1,
-//             bio: 1,
-//             isAdmin: 1,
-//             funMeter: 1,
-//             createdAt: 1,
-//             reactionStreak: 1,
-//             lastReaction: 1,
-//             streakRewards: 1,
-//             followers: 1,
-//             following: 1,
-//             blockedUsers: 1,
-//             onlineStatus: 1,
-//           },
-//         },
-//       },
-//     ]);
-
-//     res.json(chats);
+//     await chatRoom.save();
+//     res.json(chatRoom);
 //   } catch (err) {
-//     console.error("Error in getChats:", err.message);
 //     next(err);
 //   }
 // };
 
-// exports.getMessages = async (req, res, next) => {
+// exports.joinChatRoom = async (req, res, next) => {
 //   try {
-//     if (!req.user || !req.user.userId) {
-//       return res.status(401).json({ message: "User must be authenticated" });
+//     const { roomId } = req.params;
+//     const userId = req.user.userId;
+
+//     const chatRoom = await ChatRoom.findById(roomId);
+//     if (!chatRoom) return res.status(404).json({ message: "Room not found" });
+
+//     if (!chatRoom.isPublic && !chatRoom.members.includes(userId)) {
+//       return res
+//         .status(403)
+//         .json({ message: "Not authorized to join this room" });
 //     }
 
-//     const { userId } = req.params;
-//     const currentUserId = mongoose.Types.ObjectId.isValid(req.user.userId)
-//       ? new mongoose.Types.ObjectId(req.user.userId)
-//       : null;
-//     if (!currentUserId) {
-//       return res.status(400).json({ message: "Invalid user ID" });
-//     }
-//     if (!mongoose.Types.ObjectId.isValid(userId)) {
-//       return res.status(400).json({ message: "Invalid target user ID" });
+//     if (!chatRoom.members.includes(userId)) {
+//       chatRoom.members.push(userId);
+//       await chatRoom.save();
 //     }
 
-//     const messages = await Message.find({
-//       $or: [
-//         { sender: currentUserId, receiver: userId, "deletedFor.sender": false },
-//         {
-//           sender: userId,
-//           receiver: currentUserId,
-//           "deletedFor.receiver": false,
-//         },
-//       ],
-//     })
-//       .populate("sender", "username profilePicture")
-//       .populate("receiver", "username profilePicture")
-//       .sort("createdAt");
-
-//     res.json(messages);
+//     res.json(chatRoom);
 //   } catch (err) {
-//     console.error("Error in getMessages:", err.message);
 //     next(err);
 //   }
 // };
 
-// exports.sendMessage = async (req, res, next) => {
-//   const { receiverId } = req.params;
-//   const { content } = req.body;
-//   const file = req.file;
-
+// exports.sendRoomMessage = async (req, res, next) => {
 //   try {
-//     // Validate req.user
-//     if (!req.user || !req.user.userId) {
-//       return res.status(401).json({ message: "User must be authenticated" });
+//     const { roomId } = req.params;
+//     const { content } = req.body;
+//     const files = req.files || [];
+//     const userId = req.user.userId;
+
+//     const chatRoom = await ChatRoom.findById(roomId);
+//     if (!chatRoom) return res.status(404).json({ message: "Room not found" });
+
+//     if (!chatRoom.members.includes(userId)) {
+//       return res.status(403).json({ message: "Not a member of this room" });
 //     }
 
-//     // Convert and validate senderId
-//     const senderId = mongoose.Types.ObjectId.isValid(req.user.userId)
-//       ? new mongoose.Types.ObjectId(req.user.userId)
-//       : null;
-//     if (!senderId) {
-//       return res.status(400).json({ message: "Invalid sender ID" });
-//     }
-
-//     // Validate receiverId
-//     if (!mongoose.Types.ObjectId.isValid(receiverId)) {
-//       return res.status(400).json({ message: "Invalid receiver ID" });
-//     }
-
-//     // Check for existing user or block
-//     const receiver = await User.findById(receiverId);
-//     if (!receiver) {
-//       return res.status(404).json({ message: "Receiver not found" });
-//     }
-//     if (receiver.blockedUsers.some((id) => id.equals(senderId))) {
-//       return res.status(403).json({ message: "You are blocked by this user" });
-//     }
-
-//     // Sanitize content
-//     const sanitizedContent = content
-//       ? sanitizeHtml(content, {
-//           allowedTags: [],
-//           allowedAttributes: {},
-//         })
-//       : "";
-
-//     let mediaUrl = null;
-//     if (file) {
+//     const media = [];
+//     for (const file of files) {
 //       const fileExtension = file.originalname.split(".").pop();
-//       const fileName = `gossiphub/chats/${Date.now()}-${file.originalname.replace(
-//         /\s+/g,
-//         "-"
-//       )}`;
+//       const fileName = `gossiphub/chat_media/${Date.now()}-${
+//         file.originalname
+//       }`;
+//       let fileType;
+
+//       if (["jpg", "jpeg", "png", "gif"].includes(fileExtension.toLowerCase())) {
+//         fileType = "image";
+//       } else if (["mp4", "mov", "avi"].includes(fileExtension.toLowerCase())) {
+//         fileType = "video";
+//       } else if (["mp3", "wav", "ogg"].includes(fileExtension.toLowerCase())) {
+//         fileType = "audio";
+//       } else {
+//         fileType = "file";
+//       }
 
 //       try {
 //         const params = {
@@ -189,233 +114,1379 @@
 //           Body: file.buffer,
 //           ContentType: file.mimetype,
 //         };
-//         await s3Client.send(new PutObjectCommand(params));
-//         mediaUrl = `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
+//         const command = new PutObjectCommand(params);
+//         await s3Client.send(command);
+//         media.push({
+//           url: `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`,
+//           type: fileType,
+//         });
 //       } catch (uploadError) {
 //         return res.status(500).json({
 //           message: "Failed to upload media to S3",
 //           error: uploadError.message,
 //         });
-//       } finally {
-//         // Clean up temporary file
-//         try {
-//           if (file.path) {
-//             fs.unlinkSync(file.path);
+//       }
+//     }
+
+//     if (!content && media.length === 0) {
+//       return res
+//         .status(400)
+//         .json({ message: "Message content or media required" });
+//     }
+
+//     const message = new Message({
+//       sender: userId,
+//       content,
+//       media,
+//       room: roomId,
+//     });
+
+//     await message.save();
+//     chatRoom.lastMessage = new Date();
+//     await chatRoom.save();
+
+//     const populatedMessage = await Message.findById(message._id).populate(
+//       "sender",
+//       "username profilePicture"
+//     );
+//     req.io.to(roomId).emit("newMessage", populatedMessage);
+
+//     res.json(populatedMessage);
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+// exports.editRoomMessage = async (req, res, next) => {
+//   try {
+//     const { roomId, messageId } = req.params;
+//     const { content } = req.body;
+//     const files = req.files || [];
+//     const userId = req.user.userId;
+
+//     const chatRoom = await ChatRoom.findById(roomId);
+//     if (!chatRoom) return res.status(404).json({ message: "Room not found" });
+
+//     const message = await Message.findById(messageId);
+//     if (!message) return res.status(404).json({ message: "Message not found" });
+
+//     if (message.sender.toString() !== userId) {
+//       return res
+//         .status(403)
+//         .json({ message: "Not authorized to edit this message" });
+//     }
+
+//     const media = [];
+//     if (files.length > 0) {
+//       // Delete old media from S3
+//       for (const oldMedia of message.media) {
+//         const oldKey = oldMedia.url.split(
+//           `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/`
+//         )[1];
+//         if (oldKey) {
+//           try {
+//             await s3Client.send(
+//               new DeleteObjectCommand({
+//                 Bucket: process.env.AWS_S3_BUCKET,
+//                 Key: oldKey,
+//               })
+//             );
+//           } catch (deleteError) {
+//             console.error(
+//               "Error deleting old media from S3:",
+//               deleteError.message
+//             );
 //           }
-//         } catch (fsError) {
-//           console.error("Error deleting temporary file:", fsError.message);
+//         }
+//       }
+
+//       // Upload new media
+//       for (const file of files) {
+//         const fileExtension = file.originalname.split(".").pop();
+//         const fileName = `gossiphub/chat_media/${Date.now()}-${
+//           file.originalname
+//         }`;
+//         let fileType;
+
+//         if (
+//           ["jpg", "jpeg", "png", "gif"].includes(fileExtension.toLowerCase())
+//         ) {
+//           fileType = "image";
+//         } else if (
+//           ["mp4", "mov", "avi"].includes(fileExtension.toLowerCase())
+//         ) {
+//           fileType = "video";
+//         } else if (
+//           ["mp3", "wav", "ogg"].includes(fileExtension.toLowerCase())
+//         ) {
+//           fileType = "audio";
+//         } else {
+//           fileType = "file";
+//         }
+
+//         try {
+//           const params = {
+//             Bucket: process.env.AWS_S3_BUCKET,
+//             Key: fileName,
+//             Body: file.buffer,
+//             ContentType: file.mimetype,
+//           };
+//           const command = new PutObjectCommand(params);
+//           await s3Client.send(command);
+//           media.push({
+//             url: `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`,
+//             type: fileType,
+//           });
+//         } catch (uploadError) {
+//           return res.status(500).json({
+//             message: "Failed to upload media to S3",
+//             error: uploadError.message,
+//           });
+//         }
+//       }
+//     } else {
+//       // Keep existing media if no new files are uploaded
+//       media.push(...message.media);
+//     }
+
+//     if (!content && media.length === 0) {
+//       return res
+//         .status(400)
+//         .json({ message: "Message content or media required" });
+//     }
+
+//     message.content = content || message.content;
+//     message.media = media;
+//     message.isEdited = true;
+//     await message.save();
+
+//     const populatedMessage = await Message.findById(message._id).populate(
+//       "sender",
+//       "username profilePicture"
+//     );
+//     req.io.to(roomId).emit("messageEdited", populatedMessage);
+
+//     res.json(populatedMessage);
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+// exports.deleteRoomMessage = async (req, res, next) => {
+//   try {
+//     const { roomId, messageId } = req.params;
+//     const userId = req.user.userId;
+
+//     const chatRoom = await ChatRoom.findById(roomId);
+//     if (!chatRoom) return res.status(404).json({ message: "Room not found" });
+
+//     const message = await Message.findById(messageId);
+//     if (!message) return res.status(404).json({ message: "Message not found" });
+
+//     if (message.sender.toString() !== userId) {
+//       return res
+//         .status(403)
+//         .json({ message: "Not authorized to delete this message" });
+//     }
+
+//     // Delete media from S3
+//     for (const mediaItem of message.media) {
+//       const key = mediaItem.url.split(
+//         `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/`
+//       )[1];
+//       if (key) {
+//         try {
+//           await s3Client.send(
+//             new DeleteObjectCommand({
+//               Bucket: process.env.AWS_S3_BUCKET,
+//               Key: key,
+//             })
+//           );
+//         } catch (deleteError) {
+//           console.error("Error deleting media from S3:", deleteError.message);
 //         }
 //       }
 //     }
 
-//     const message = new Message({
-//       sender: senderId,
-//       receiver: receiverId,
-//       content: sanitizedContent,
-//       media: mediaUrl,
-//       status: receiver.followers.some((id) => id.equals(senderId))
-//         ? "accepted"
-//         : "pending",
-//     });
-//     await message.save();
+//     await Message.findByIdAndDelete(messageId);
+//     req.io.to(roomId).emit("messageDeleted", { messageId });
 
-//     const populatedMessage = await Message.findById(message._id)
-//       .populate("sender", "username profilePicture")
-//       .populate("receiver", "username profilePicture");
-
-//     req.app
-//       .get("io")
-//       .to(receiverId.toString())
-//       .emit("newMessage", populatedMessage);
-//     res.status(201).json(populatedMessage);
-//   } catch (err) {
-//     console.error("Error in sendMessage:", err.message);
-//     next(err);
-//   }
-// };
-
-// exports.markMessageAsRead = async (req, res, next) => {
-//   try {
-//     if (!req.user || !req.user.userId) {
-//       return res.status(401).json({ message: "User must be authenticated" });
-//     }
-
-//     const { messageId } = req.params;
-//     if (!mongoose.Types.ObjectId.isValid(messageId)) {
-//       return res.status(400).json({ message: "Invalid message ID" });
-//     }
-
-//     const message = await Message.findOneAndUpdate(
-//       { _id: messageId, receiver: req.user.userId, isRead: false },
-//       { isRead: true },
-//       { new: true }
-//     ).populate("sender", "username profilePicture");
-
-//     if (!message) {
-//       return res
-//         .status(404)
-//         .json({ message: "Message not found or already read" });
-//     }
-
-//     req.app
-//       .get("io")
-//       .to(message.sender.toString())
-//       .emit("messageSeen", messageId);
-//     res.json(message);
-//   } catch (err) {
-//     console.error("Error in markMessageAsRead:", err.message);
-//     next(err);
-//   }
-// };
-
-// exports.deleteMessage = async (req, res, next) => {
-//   try {
-//     if (!req.user || !req.user.userId) {
-//       return res.status(401).json({ message: "User must be authenticated" });
-//     }
-
-//     const { messageId } = req.params;
-//     if (!mongoose.Types.ObjectId.isValid(messageId)) {
-//       return res.status(400).json({ message: "Invalid message ID" });
-//     }
-
-//     const userId = mongoose.Types.ObjectId.isValid(req.user.userId)
-//       ? new mongoose.Types.ObjectId(req.user.userId)
-//       : null;
-//     if (!userId) {
-//       return res.status(400).json({ message: "Invalid user ID" });
-//     }
-
-//     const message = await Message.findById(messageId);
-//     if (!message) {
-//       return res.status(404).json({ message: "Message not found" });
-//     }
-
-//     if (message.sender.equals(userId)) {
-//       message.deletedFor.sender = true;
-//     } else if (message.receiver.equals(userId)) {
-//       message.deletedFor.receiver = true;
-//     } else {
-//       return res
-//         .status(403)
-//         .json({ message: "Unauthorized to delete this message" });
-//     }
-
-//     await message.save();
-
-//     if (message.deletedFor.sender && message.deletedFor.receiver) {
-//       await Message.deleteOne({ _id: messageId });
-//     }
-
-//     const io = req.app.get("io");
-//     const recipientId = message.sender.equals(userId)
-//       ? message.receiver
-//       : message.sender;
-//     io.to(recipientId.toString()).emit("messageDeleted", messageId);
 //     res.json({ message: "Message deleted successfully" });
 //   } catch (err) {
-//     console.error("Error in deleteMessage:", err.message);
 //     next(err);
 //   }
 // };
 
-// exports.reportMessage = async (req, res, next) => {
+// exports.sendDirectMessage = async (req, res, next) => {
 //   try {
-//     if (!req.user || !req.user.userId) {
-//       return res.status(401).json({ message: "User must be authenticated" });
+//     const { recipientId, content } = req.body;
+//     const files = req.files || [];
+//     const senderId = req.user.userId;
+
+//     const user = await User.findById(senderId);
+//     if (
+//       !user.followers.includes(recipientId) &&
+//       !user.following.includes(recipientId)
+//     ) {
+//       return res.status(400).json({
+//         message: "Can only message followers or following users",
+//       });
 //     }
 
-//     const { messageId } = req.params;
-//     const { reason } = req.body;
+//     let dm = await DirectMessage.findOne({
+//       participants: { $all: [senderId, recipientId] },
+//     });
+
+//     if (!dm) {
+//       dm = new DirectMessage({
+//         participants: [senderId, recipientId],
+//         messages: [],
+//       });
+//     }
+
+//     const media = [];
+//     for (const file of files) {
+//       const fileExtension = file.originalname.split(".").pop();
+//       const fileName = `gossiphub/chat_media/${Date.now()}-${
+//         file.originalname
+//       }`;
+//       let fileType;
+
+//       if (["jpg", "jpeg", "png", "gif"].includes(fileExtension.toLowerCase())) {
+//         fileType = "image";
+//       } else if (["mp4", "mov", "avi"].includes(fileExtension.toLowerCase())) {
+//         fileType = "video";
+//       } else if (["mp3", "wav", "ogg"].includes(fileExtension.toLowerCase())) {
+//         fileType = "audio";
+//       } else {
+//         fileType = "file";
+//       }
+
+//       try {
+//         const params = {
+//           Bucket: process.env.AWS_S3_BUCKET,
+//           Key: fileName,
+//           Body: file.buffer,
+//           ContentType: file.mimetype,
+//         };
+//         const command = new PutObjectCommand(params);
+//         await s3Client.send(command);
+//         media.push({
+//           url: `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`,
+//           type: fileType,
+//         });
+//       } catch (uploadError) {
+//         return res.status(500).json({
+//           message: "Failed to upload media to S3",
+//           error: uploadError.message,
+//         });
+//       }
+//     }
+
+//     if (!content && media.length === 0) {
+//       return res
+//         .status(400)
+//         .json({ message: "Message content or media required" });
+//     }
+
+//     const newMessage = {
+//       sender: senderId,
+//       content,
+//       media,
+//       createdAt: new Date(),
+//     };
+
+//     dm.messages.push(newMessage);
+//     dm.lastMessage = new Date();
+//     await dm.save();
+
+//     req.io.to(recipientId).emit("newDirectMessage", newMessage);
+
+//     res.json(dm);
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+// exports.editDirectMessage = async (req, res, next) => {
+//   try {
+//     const { recipientId, messageId } = req.params;
+//     const { content } = req.body;
+//     const files = req.files || [];
+//     const senderId = req.user.userId;
+
+//     const dm = await DirectMessage.findOne({
+//       participants: { $all: [senderId, recipientId] },
+//     });
+//     if (!dm) return res.status(404).json({ message: "Conversation not found" });
+
+//     const message = dm.messages.id(messageId);
+//     if (!message) return res.status(404).json({ message: "Message not found" });
+
+//     if (message.sender.toString() !== senderId) {
+//       return res
+//         .status(403)
+//         .json({ message: "Not authorized to edit this message" });
+//     }
+
+//     const media = [];
+//     if (files.length > 0) {
+//       // Delete old media from S3
+//       for (const oldMedia of message.media) {
+//         const oldKey = oldMedia.url.split(
+//           `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/`
+//         )[1];
+//         if (oldKey) {
+//           try {
+//             await s3Client.send(
+//               new DeleteObjectCommand({
+//                 Bucket: process.env.AWS_S3_BUCKET,
+//                 Key: oldKey,
+//               })
+//             );
+//           } catch (deleteError) {
+//             console.error(
+//               "Error deleting old media from S3:",
+//               deleteError.message
+//             );
+//           }
+//         }
+//       }
+
+//       // Upload new media
+//       for (const file of files) {
+//         const fileExtension = file.originalname.split(".").pop();
+//         const fileName = `gossiphub/chat_media/${Date.now()}-${
+//           file.originalname
+//         }`;
+//         let fileType;
+
+//         if (
+//           ["jpg", "jpeg", "png", "gif"].includes(fileExtension.toLowerCase())
+//         ) {
+//           fileType = "image";
+//         } else if (
+//           ["mp4", "mov", "avi"].includes(fileExtension.toLowerCase())
+//         ) {
+//           fileType = "video";
+//         } else if (
+//           ["mp3", "wav", "ogg"].includes(fileExtension.toLowerCase())
+//         ) {
+//           fileType = "audio";
+//         } else {
+//           fileType = "file";
+//         }
+
+//         try {
+//           const params = {
+//             Bucket: process.env.AWS_S3_BUCKET,
+//             Key: fileName,
+//             Body: file.buffer,
+//             ContentType: file.mimetype,
+//           };
+//           const command = new PutObjectCommand(params);
+//           await s3Client.send(command);
+//           media.push({
+//             url: `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`,
+//             type: fileType,
+//           });
+//         } catch (uploadError) {
+//           return res.status(500).json({
+//             message: "Failed to upload media to S3",
+//             error: uploadError.message,
+//           });
+//         }
+//       }
+//     } else {
+//       // Keep existing media if no new files are uploaded
+//       media.push(...message.media);
+//     }
+
+//     if (!content && media.length === 0) {
+//       return res
+//         .status(400)
+//         .json({ message: "Message content or media required" });
+//     }
+
+//     message.content = content || message.content;
+//     message.media = media;
+//     message.isEdited = true;
+//     await dm.save();
+
+//     req.io.to(recipientId).emit("directMessageEdited", message);
+
+//     res.json(dm);
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+// exports.deleteDirectMessage = async (req, res, next) => {
+//   try {
+//     const { recipientId, messageId } = req.params;
+//     const senderId = req.user.userId;
+
+//     const dm = await DirectMessage.findOne({
+//       participants: { $all: [senderId, recipientId] },
+//     });
+//     if (!dm) return res.status(404).json({ message: "Conversation not found" });
+
+//     const message = dm.messages.id(messageId);
+//     if (!message) return res.status(404).json({ message: "Message not found" });
+
+//     if (message.sender.toString() !== senderId) {
+//       return res
+//         .status(403)
+//         .json({ message: "Not authorized to delete this message" });
+//     }
+
+//     // Delete media from S3
+//     for (const mediaItem of message.media) {
+//       const key = mediaItem.url.split(
+//         `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/`
+//       )[1];
+//       if (key) {
+//         try {
+//           await s3Client.send(
+//             new DeleteObjectCommand({
+//               Bucket: process.env.AWS_S3_BUCKET,
+//               Key: key,
+//             })
+//           );
+//         } catch (deleteError) {
+//           console.error("Error deleting media from S3:", deleteError.message);
+//         }
+//       }
+//     }
+
+//     // Remove the message from the messages array using $pull
+//     dm.messages.pull({ _id: messageId });
+//     await dm.save();
+
+//     req.io.to(recipientId).emit("directMessageDeleted", { messageId });
+
+//     res.json({ message: "Message deleted successfully" });
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+// exports.getUserChatRooms = async (req, res, next) => {
+//   try {
+//     const userId = req.user.userId;
+//     const chatRooms = await ChatRoom.find({
+//       $or: [{ members: userId }, { creator: userId }],
+//     })
+//       .populate("creator", "username profilePicture")
+//       .populate("members", "username profilePicture")
+//       .sort({ lastMessage: -1 });
+//     res.json(chatRooms);
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+// exports.getRoomMessages = async (req, res, next) => {
+//   try {
+//     const { roomId } = req.params;
+//     const userId = req.user.userId;
+
+//     const chatRoom = await ChatRoom.findById(roomId);
+//     if (!chatRoom) return res.status(404).json({ message: "Room not found" });
+
+//     if (!chatRoom.isPublic && !chatRoom.members.includes(userId)) {
+//       return res
+//         .status(403)
+//         .json({ message: "Not authorized to view messages" });
+//     }
+
+//     const messages = await Message.find({ room: roomId })
+//       .populate("sender", "username profilePicture")
+//       .sort({ createdAt: 1 });
+//     res.json(messages);
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+// exports.getDirectMessages = async (req, res, next) => {
+//   try {
+//     const { recipientId } = req.params;
+//     const senderId = req.user.userId;
+
+//     const dm = await DirectMessage.findOne({
+//       participants: { $all: [senderId, recipientId] },
+//     }).populate("participants", "username profilePicture");
+
+//     res.json(dm || { messages: [] });
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// const mongoose = require("mongoose");
+// const { Message, ChatRoom, DirectMessage } = require("../models/chat");
+// const User = require("../models/User");
+// const {
+//   S3Client,
+//   PutObjectCommand,
+//   DeleteObjectCommand,
+// } = require("@aws-sdk/client-s3");
+
+// const s3Client = new S3Client({
+//   region: process.env.AWS_REGION,
+//   credentials: {
+//     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+//     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+//   },
+// });
+
+// exports.createChatRoom = async (req, res, next) => {
+//   try {
+//     const { name, isPublic, members } = req.body;
+//     const creatorId = req.user.userId;
+
+//     // Validate creatorId
+//     if (!mongoose.Types.ObjectId.isValid(creatorId)) {
+//       return res.status(400).json({ message: "Invalid creator ID" });
+//     }
+
+//     const user = await User.findById(creatorId);
+//     if (!user) return res.status(404).json({ message: "User not found" });
+
+//     if (!isPublic && members) {
+//       const invalidMembers = members.filter(
+//         (memberId) =>
+//           !mongoose.Types.ObjectId.isValid(memberId) ||
+//           (!user.followers.includes(memberId) &&
+//             !user.following.includes(memberId))
+//       );
+//       if (invalidMembers.length > 0) {
+//         return res.status(400).json({
+//           message: "All members must be valid followers or following",
+//         });
+//       }
+//     }
+
+//     const chatRoom = new ChatRoom({
+//       name,
+//       isPublic,
+//       creator: creatorId,
+//       members: isPublic ? [] : [creatorId, ...(members || [])],
+//     });
+
+//     await chatRoom.save();
+//     res.json(chatRoom);
+//   } catch (err) {
+//     console.error("Error in createChatRoom:", err);
+//     next(err);
+//   }
+// };
+
+// exports.joinChatRoom = async (req, res, next) => {
+//   try {
+//     const { roomId } = req.params;
+//     const userId = req.user.userId;
+
+//     // Validate inputs
+//     if (!mongoose.Types.ObjectId.isValid(roomId)) {
+//       return res.status(400).json({ message: "Invalid room ID" });
+//     }
+//     if (!mongoose.Types.ObjectId.isValid(userId)) {
+//       return res.status(400).json({ message: "Invalid user ID" });
+//     }
+
+//     const chatRoom = await ChatRoom.findById(roomId);
+//     if (!chatRoom) return res.status(404).json({ message: "Room not found" });
+
+//     if (!chatRoom.isPublic && !chatRoom.members.includes(userId)) {
+//       return res
+//         .status(403)
+//         .json({ message: "Not authorized to join this room" });
+//     }
+
+//     if (!chatRoom.members.includes(userId)) {
+//       chatRoom.members.push(userId);
+//       await chatRoom.save();
+//     }
+
+//     res.json(chatRoom);
+//   } catch (err) {
+//     console.error("Error in joinChatRoom:", err);
+//     next(err);
+//   }
+// };
+
+// exports.sendRoomMessage = async (req, res, next) => {
+//   try {
+//     const { roomId } = req.params;
+//     const { content } = req.body;
+//     const files = req.files || [];
+//     const userId = req.user.userId;
+
+//     // Validate inputs
+//     if (!roomId || roomId === "null") {
+//       return res.status(400).json({ message: "Missing room ID" });
+//     }
+//     if (!mongoose.Types.ObjectId.isValid(roomId)) {
+//       return res.status(400).json({ message: "Invalid room ID" });
+//     }
+//     if (!mongoose.Types.ObjectId.isValid(userId)) {
+//       return res.status(400).json({ message: "Invalid user ID" });
+//     }
+
+//     // Check if room exists
+//     const chatRoom = await ChatRoom.findById(roomId);
+//     if (!chatRoom) return res.status(404).json({ message: "Room not found" });
+
+//     // Check if user is a member
+//     if (!chatRoom.members.includes(userId)) {
+//       return res.status(403).json({ message: "Not a member of this room" });
+//     }
+
+//     // Validate sender
+//     const user = await User.findById(userId);
+//     if (!user) return res.status(404).json({ message: "Sender not found" });
+
+//     // Process media uploads
+//     const media = [];
+//     for (const file of files) {
+//       const fileExtension = file.originalname.split(".").pop();
+//       const fileName = `gossiphub/chat_media/${Date.now()}-${
+//         file.originalname
+//       }`;
+//       let fileType;
+
+//       if (["jpg", "jpeg", "png", "gif"].includes(fileExtension.toLowerCase())) {
+//         fileType = "image";
+//       } else if (["mp4", "mov", "avi"].includes(fileExtension.toLowerCase())) {
+//         fileType = "video";
+//       } else if (["mp3", "wav", "ogg"].includes(fileExtension.toLowerCase())) {
+//         fileType = "audio";
+//       } else {
+//         fileType = "file";
+//       }
+
+//       try {
+//         const params = {
+//           Bucket: process.env.AWS_S3_BUCKET,
+//           Key: fileName,
+//           Body: file.buffer,
+//           ContentType: file.mimetype,
+//         };
+//         const command = new PutObjectCommand(params);
+//         await s3Client.send(command);
+//         media.push({
+//           url: `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`,
+//           type: fileType,
+//         });
+//       } catch (uploadError) {
+//         console.error("Error uploading media to S3:", uploadError);
+//         return res.status(500).json({
+//           message: "Failed to upload media to S3",
+//           error: uploadError.message,
+//         });
+//       }
+//     }
+
+//     if (!content && media.length === 0) {
+//       return res
+//         .status(400)
+//         .json({ message: "Message content or media required" });
+//     }
+
+//     // Create new message
+//     const message = new Message({
+//       sender: userId,
+//       content,
+//       media,
+//       room: roomId,
+//     });
+
+//     await message.save();
+//     chatRoom.lastMessage = new Date();
+//     await chatRoom.save();
+
+//     // Populate message for response
+//     const populatedMessage = await Message.findById(message._id).populate(
+//       "sender",
+//       "username profilePicture"
+//     );
+//     req.io.to(roomId).emit("newMessage", populatedMessage);
+
+//     res.json(populatedMessage);
+//   } catch (err) {
+//     console.error("Error in sendRoomMessage:", err);
+//     next(err);
+//   }
+// };
+
+// exports.editRoomMessage = async (req, res, next) => {
+//   try {
+//     const { roomId, messageId } = req.params;
+//     const { content } = req.body;
+//     const files = req.files || [];
+//     const userId = req.user.userId;
+
+//     // Validate inputs
+//     if (!mongoose.Types.ObjectId.isValid(roomId)) {
+//       return res.status(400).json({ message: "Invalid room ID" });
+//     }
 //     if (!mongoose.Types.ObjectId.isValid(messageId)) {
 //       return res.status(400).json({ message: "Invalid message ID" });
 //     }
+//     if (!mongoose.Types.ObjectId.isValid(userId)) {
+//       return res.status(400).json({ message: "Invalid user ID" });
+//     }
+
+//     const chatRoom = await ChatRoom.findById(roomId);
+//     if (!chatRoom) return res.status(404).json({ message: "Room not found" });
 
 //     const message = await Message.findById(messageId);
-//     if (!message) {
-//       return res.status(404).json({ message: "Message not found" });
+//     if (!message) return res.status(404).json({ message: "Message not found" });
+
+//     if (message.sender.toString() !== userId) {
+//       return res
+//         .status(403)
+//         .json({ message: "Not authorized to edit this message" });
 //     }
 
-//     // TODO: Implement report storage in a Reports collection
-//     res.json({ message: "Message reported successfully" });
+//     // Process media uploads
+//     const media = [];
+//     if (files.length > 0) {
+//       // Delete old media from S3
+//       for (const oldMedia of message.media) {
+//         const oldKey = oldMedia.url.split(
+//           `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/`
+//         )[1];
+//         if (oldKey) {
+//           try {
+//             await s3Client.send(
+//               new DeleteObjectCommand({
+//                 Bucket: process.env.AWS_S3_BUCKET,
+//                 Key: oldKey,
+//               })
+//             );
+//           } catch (deleteError) {
+//             console.error("Error deleting old media from S3:", deleteError);
+//           }
+//         }
+//       }
+
+//       // Upload new media
+//       for (const file of files) {
+//         const fileExtension = file.originalname.split(".").pop();
+//         const fileName = `gossiphub/chat_media/${Date.now()}-${
+//           file.originalname
+//         }`;
+//         let fileType;
+
+//         if (
+//           ["jpg", "jpeg", "png", "gif"].includes(fileExtension.toLowerCase())
+//         ) {
+//           fileType = "image";
+//         } else if (
+//           ["mp4", "mov", "avi"].includes(fileExtension.toLowerCase())
+//         ) {
+//           fileType = "video";
+//         } else if (
+//           ["mp3", "wav", "ogg"].includes(fileExtension.toLowerCase())
+//         ) {
+//           fileType = "audio";
+//         } else {
+//           fileType = "file";
+//         }
+
+//         try {
+//           const params = {
+//             Bucket: process.env.AWS_S3_BUCKET,
+//             Key: fileName,
+//             Body: file.buffer,
+//             ContentType: file.mimetype,
+//           };
+//           const command = new PutObjectCommand(params);
+//           await s3Client.send(command);
+//           media.push({
+//             url: `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`,
+//             type: fileType,
+//           });
+//         } catch (uploadError) {
+//           console.error("Error uploading media to S3:", uploadError);
+//           return res.status(500).json({
+//             message: "Failed to upload media to S3",
+//             error: uploadError.message,
+//           });
+//         }
+//       }
+//     } else {
+//       media.push(...message.media);
+//     }
+
+//     if (!content && media.length === 0) {
+//       return res
+//         .status(400)
+//         .json({ message: "Message content or media required" });
+//     }
+
+//     message.content = content || message.content;
+//     message.media = media;
+//     message.isEdited = true;
+//     await message.save();
+
+//     const populatedMessage = await Message.findById(message._id).populate(
+//       "sender",
+//       "username profilePicture"
+//     );
+//     req.io.to(roomId).emit("messageEdited", populatedMessage);
+
+//     res.json(populatedMessage);
 //   } catch (err) {
-//     console.error("Error in reportMessage:", err.message);
+//     console.error("Error in editRoomMessage:", err);
 //     next(err);
 //   }
 // };
 
-// exports.blockUser = async (req, res, next) => {
+// exports.deleteRoomMessage = async (req, res, next) => {
 //   try {
-//     if (!req.user || !req.user.userId) {
-//       return res.status(401).json({ message: "User must be authenticated" });
-//     }
+//     const { roomId, messageId } = req.params;
+//     const userId = req.user.userId;
 
-//     const { userId } = req.params;
+//     // Validate inputs
+//     if (!mongoose.Types.ObjectId.isValid(roomId)) {
+//       return res.status(400).json({ message: "Invalid room ID" });
+//     }
+//     if (!mongoose.Types.ObjectId.isValid(messageId)) {
+//       return res.status(400).json({ message: "Invalid message ID" });
+//     }
 //     if (!mongoose.Types.ObjectId.isValid(userId)) {
 //       return res.status(400).json({ message: "Invalid user ID" });
 //     }
 
-//     const currentUser = await User.findById(req.user.userId);
-//     if (!currentUser) {
-//       return res.status(404).json({ message: "User not found" });
+//     const chatRoom = await ChatRoom.findById(roomId);
+//     if (!chatRoom) return res.status(404).json({ message: "Room not found" });
+
+//     const message = await Message.findById(messageId);
+//     if (!message) return res.status(404).json({ message: "Message not found" });
+
+//     if (message.sender.toString() !== userId) {
+//       return res
+//         .status(403)
+//         .json({ message: "Not authorized to delete this message" });
 //     }
 
-//     if (!currentUser.blockedUsers.some((id) => id.equals(userId))) {
-//       currentUser.blockedUsers.push(userId);
-//       await currentUser.save();
+//     // Delete media from S3
+//     for (const mediaItem of message.media) {
+//       const key = mediaItem.url.split(
+//         `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/`
+//       )[1];
+//       if (key) {
+//         try {
+//           await s3Client.send(
+//             new DeleteObjectCommand({
+//               Bucket: process.env.AWS_S3_BUCKET,
+//               Key: key,
+//             })
+//           );
+//         } catch (deleteError) {
+//           console.error("Error deleting media from S3:", deleteError);
+//         }
+//       }
 //     }
 
-//     res.json({ message: "User blocked successfully" });
+//     await Message.findByIdAndDelete(messageId);
+//     req.io.to(roomId).emit("messageDeleted", { messageId });
+
+//     res.json({ message: "Message deleted successfully" });
 //   } catch (err) {
-//     console.error("Error in blockUser:", err.message);
+//     console.error("Error in deleteRoomMessage:", err);
 //     next(err);
 //   }
 // };
 
-// exports.unblockUser = async (req, res, next) => {
+// exports.sendDirectMessage = async (req, res, next) => {
 //   try {
-//     if (!req.user || !req.user.userId) {
-//       return res.status(401).json({ message: "User must be authenticated" });
+//     const { recipientId, content } = req.body;
+//     const files = req.files || [];
+//     const senderId = req.user?.userId;
+
+//     // Validate inputs
+//     if (!senderId) {
+//       console.error("sendDirectMessage: Missing sender ID", {
+//         reqUser: req.user,
+//       });
+//       return res
+//         .status(401)
+//         .json({ message: "Authentication required: Missing sender ID" });
+//     }
+//     if (!recipientId) {
+//       console.error("sendDirectMessage: Missing recipient ID", {
+//         body: req.body,
+//       });
+//       return res.status(400).json({ message: "Missing recipient ID" });
+//     }
+//     if (!mongoose.Types.ObjectId.isValid(senderId)) {
+//       console.error("sendDirectMessage: Invalid sender ID", { senderId });
+//       return res.status(400).json({ message: "Invalid sender ID" });
+//     }
+//     if (!mongoose.Types.ObjectId.isValid(recipientId)) {
+//       console.error("sendDirectMessage: Invalid recipient ID", { recipientId });
+//       return res.status(400).json({ message: "Invalid recipient ID" });
 //     }
 
-//     const { userId } = req.params;
-//     if (!mongoose.Types.ObjectId.isValid(userId)) {
-//       return res.status(400).json({ message: "Invalid user ID" });
+//     // Check if users exist
+//     const [sender, recipient] = await Promise.all([
+//       User.findById(senderId),
+//       User.findById(recipientId),
+//     ]);
+
+//     if (!sender) {
+//       console.error("sendDirectMessage: Sender not found", { senderId });
+//       return res.status(404).json({ message: "Sender not found" });
+//     }
+//     if (!recipient) {
+//       console.error("sendDirectMessage: Recipient not found", { recipientId });
+//       return res.status(404).json({ message: "Recipient not found" });
 //     }
 
-//     const currentUser = await User.findById(req.user.userId);
-//     if (!currentUser) {
-//       return res.status(404).json({ message: "User not found" });
+//     // Relaxed followers check (optional: remove if not needed)
+//     // if (
+//     //   !sender.followers.includes(recipientId) &&
+//     //   !sender.following.includes(recipientId)
+//     // ) {
+//     //   console.error("sendDirectMessage: Sender not allowed to message recipient", {
+//     //     senderId,
+//     //     recipientId,
+//     //   });
+//     //   return res.status(403).json({
+//     //     message: "Can only message followers or following users",
+//     //   });
+//     // }
+
+//     // Find or create direct message conversation
+//     let dm = await DirectMessage.findOne({
+//       participants: { $all: [senderId, recipientId] },
+//     });
+
+//     if (!dm) {
+//       dm = new DirectMessage({
+//         participants: [senderId, recipientId],
+//         messages: [],
+//       });
 //     }
 
-//     // Check if the user is actually blocked
-//     if (!currentUser.blockedUsers.some((id) => id.equals(userId))) {
-//       return res.status(400).json({ message: "User is not blocked" });
+//     // Process media uploads
+//     const media = [];
+//     for (const file of files) {
+//       const fileExtension = file.originalname.split(".").pop();
+//       const fileName = `gossiphub/chat_media/${Date.now()}-${
+//         file.originalname
+//       }`;
+//       let fileType;
+
+//       if (["jpg", "jpeg", "png", "gif"].includes(fileExtension.toLowerCase())) {
+//         fileType = "image";
+//       } else if (["mp4", "mov", "avi"].includes(fileExtension.toLowerCase())) {
+//         fileType = "video";
+//       } else if (["mp3", "wav", "ogg"].includes(fileExtension.toLowerCase())) {
+//         fileType = "audio";
+//       } else {
+//         fileType = "file";
+//       }
+
+//       try {
+//         const params = {
+//           Bucket: process.env.AWS_S3_BUCKET,
+//           Key: fileName,
+//           Body: file.buffer,
+//           ContentType: file.mimetype,
+//         };
+//         const command = new PutObjectCommand(params);
+//         await s3Client.send(command);
+//         media.push({
+//           url: `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`,
+//           type: fileType,
+//         });
+//       } catch (uploadError) {
+//         console.error("Error uploading media to S3:", uploadError);
+//         return res.status(500).json({
+//           message: "Failed to upload media to S3",
+//           error: uploadError.message,
+//         });
+//       }
 //     }
 
-//     // Remove userId from blockedUsers array
-//     await User.findByIdAndUpdate(
-//       req.user.userId,
-//       { $pull: { blockedUsers: userId } },
-//       { new: true }
+//     if (!content && media.length === 0) {
+//       console.error("sendDirectMessage: Missing content and media", {
+//         body: req.body,
+//       });
+//       return res
+//         .status(400)
+//         .json({ message: "Message content or media required" });
+//     }
+
+//     // Create new message
+//     const newMessage = {
+//       sender: senderId,
+//       content,
+//       media,
+//       createdAt: new Date(),
+//     };
+
+//     dm.messages.push(newMessage);
+//     dm.lastMessage = new Date();
+//     await dm.save();
+
+//     // Populate the new message for response
+//     const populatedDm = await DirectMessage.findById(dm._id).populate(
+//       "participants",
+//       "username profilePicture"
+//     );
+//     const populatedMessage = populatedDm.messages.find(
+//       (msg) => msg._id.toString() === newMessage._id.toString()
 //     );
 
-//     res.json({ message: "User unblocked successfully" });
+//     // Emit socket event to both users
+//     req.io.to(senderId).emit("newDirectMessage", populatedMessage);
+//     req.io.to(recipientId).emit("newDirectMessage", populatedMessage);
+
+//     res.json(populatedDm);
 //   } catch (err) {
-//     console.error("Error in unblockUser:", err.message);
+//     console.error("Error in sendDirectMessage:", err);
+//     next(err);
+//   }
+// };
+
+// exports.editDirectMessage = async (req, res, next) => {
+//   try {
+//     const { recipientId, messageId } = req.params;
+//     const { content } = req.body;
+//     const files = req.files || [];
+//     const senderId = req.user?.userId;
+
+//     // Validate inputs
+//     if (!senderId) {
+//       console.error("editDirectMessage: Missing sender ID", {
+//         reqUser: req.user,
+//       });
+//       return res
+//         .status(401)
+//         .json({ message: "Authentication required: Missing sender ID" });
+//     }
+//     if (!mongoose.Types.ObjectId.isValid(recipientId)) {
+//       console.error("editDirectMessage: Invalid recipient ID", { recipientId });
+//       return res.status(400).json({ message: "Invalid recipient ID" });
+//     }
+//     if (!mongoose.Types.ObjectId.isValid(messageId)) {
+//       console.error("editDirectMessage: Invalid message ID", { messageId });
+//       return res.status(400).json({ message: "Invalid message ID" });
+//     }
+//     if (!mongoose.Types.ObjectId.isValid(senderId)) {
+//       console.error("editDirectMessage: Invalid sender ID", { senderId });
+//       return res.status(400).json({ message: "Invalid sender ID" });
+//     }
+
+//     const dm = await DirectMessage.findOne({
+//       participants: { $all: [senderId, recipientId] },
+//     });
+//     if (!dm) return res.status(404).json({ message: "Conversation not found" });
+
+//     const message = dm.messages.id(messageId);
+//     if (!message) return res.status(404).json({ message: "Message not found" });
+
+//     if (message.sender.toString() !== senderId) {
+//       return res
+//         .status(403)
+//         .json({ message: "Not authorized to edit this message" });
+//     }
+
+//     // Process media uploads
+//     const media = [];
+//     if (files.length > 0) {
+//       // Delete old media from S3
+//       for (const oldMedia of message.media) {
+//         const oldKey = oldMedia.url.split(
+//           `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/`
+//         )[1];
+//         if (oldKey) {
+//           try {
+//             await s3Client.send(
+//               new DeleteObjectCommand({
+//                 Bucket: process.env.AWS_S3_BUCKET,
+//                 Key: oldKey,
+//               })
+//             );
+//           } catch (deleteError) {
+//             console.error("Error deleting old media from S3:", deleteError);
+//           }
+//         }
+//       }
+
+//       // Upload new media
+//       for (const file of files) {
+//         const fileExtension = file.originalname.split(".").pop();
+//         const fileName = `gossiphub/chat_media/${Date.now()}-${
+//           file.originalname
+//         }`;
+//         let fileType;
+
+//         if (
+//           ["jpg", "jpeg", "png", "gif"].includes(fileExtension.toLowerCase())
+//         ) {
+//           fileType = "image";
+//         } else if (
+//           ["mp4", "mov", "avi"].includes(fileExtension.toLowerCase())
+//         ) {
+//           fileType = "video";
+//         } else if (
+//           ["mp3", "wav", "ogg"].includes(fileExtension.toLowerCase())
+//         ) {
+//           fileType = "audio";
+//         } else {
+//           fileType = "file";
+//         }
+
+//         try {
+//           const params = {
+//             Bucket: process.env.AWS_S3_BUCKET,
+//             Key: fileName,
+//             Body: file.buffer,
+//             ContentType: file.mimetype,
+//           };
+//           const command = new PutObjectCommand(params);
+//           await s3Client.send(command);
+//           media.push({
+//             url: `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`,
+//             type: fileType,
+//           });
+//         } catch (uploadError) {
+//           console.error("Error uploading media to S3:", uploadError);
+//           return res.status(500).json({
+//             message: "Failed to upload media to S3",
+//             error: uploadError.message,
+//           });
+//         }
+//       }
+//     } else {
+//       media.push(...message.media);
+//     }
+
+//     if (!content && media.length === 0) {
+//       return res
+//         .status(400)
+//         .json({ message: "Message content or media required" });
+//     }
+
+//     message.content = content || message.content;
+//     message.media = media;
+//     message.isEdited = true;
+//     await dm.save();
+
+//     // Emit socket event
+//     req.io.to(senderId).emit("directMessageEdited", message);
+//     req.io.to(recipientId).emit("directMessageEdited", message);
+
+//     res.json(dm);
+//   } catch (err) {
+//     console.error("Error in editDirectMessage:", err);
+//     next(err);
+//   }
+// };
+
+// exports.deleteDirectMessage = async (req, res, next) => {
+//   try {
+//     const { recipientId, messageId } = req.params;
+//     const senderId = req.user?.userId;
+
+//     // Validate inputs
+//     if (!senderId) {
+//       console.error("deleteDirectMessage: Missing sender ID", {
+//         reqUser: req.user,
+//       });
+//       return res
+//         .status(401)
+//         .json({ message: "Authentication required: Missing sender ID" });
+//     }
+//     if (!mongoose.Types.ObjectId.isValid(recipientId)) {
+//       console.error("deleteDirectMessage: Invalid recipient ID", {
+//         recipientId,
+//       });
+//       return res.status(400).json({ message: "Invalid recipient ID" });
+//     }
+//     if (!mongoose.Types.ObjectId.isValid(messageId)) {
+//       console.error("deleteDirectMessage: Invalid message ID", { messageId });
+//       return res.status(400).json({ message: "Invalid message ID" });
+//     }
+//     if (!mongoose.Types.ObjectId.isValid(senderId)) {
+//       console.error("deleteDirectMessage: Invalid sender ID", { senderId });
+//       return res.status(400).json({ message: "Invalid sender ID" });
+//     }
+
+//     const dm = await DirectMessage.findOne({
+//       participants: { $all: [senderId, recipientId] },
+//     });
+//     if (!dm) return res.status(404).json({ message: "Conversation not found" });
+
+//     const message = dm.messages.id(messageId);
+//     if (!message) return res.status(404).json({ message: "Message not found" });
+
+//     if (message.sender.toString() !== senderId) {
+//       return res
+//         .status(403)
+//         .json({ message: "Not authorized to delete this message" });
+//     }
+
+//     // Delete media from S3
+//     for (const mediaItem of message.media) {
+//       const key = mediaItem.url.split(
+//         `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/`
+//       )[1];
+//       if (key) {
+//         try {
+//           await s3Client.send(
+//             new DeleteObjectCommand({
+//               Bucket: process.env.AWS_S3_BUCKET,
+//               Key: key,
+//             })
+//           );
+//         } catch (deleteError) {
+//           console.error("Error deleting media from S3:", deleteError);
+//         }
+//       }
+//     }
+
+//     // Remove the message from the messages array
+//     dm.messages.pull({ _id: messageId });
+//     await dm.save();
+
+//     // Emit socket event
+//     req.io.to(senderId).emit("directMessageDeleted", { messageId });
+//     req.io.to(recipientId).emit("directMessageDeleted", { messageId });
+
+//     res.json({ message: "Message deleted successfully" });
+//   } catch (err) {
+//     console.error("Error in deleteDirectMessage:", err);
+//     next(err);
+//   }
+// };
+
+// exports.getUserChatRooms = async (req, res, next) => {
+//   try {
+//     const userId = req.user?.userId;
+
+//     // Validate userId
+//     if (!userId) {
+//       console.error("getUserChatRooms: Missing user ID", { reqUser: req.user });
+//       return res
+//         .status(401)
+//         .json({ message: "Authentication required: Missing user ID" });
+//     }
+//     if (!mongoose.Types.ObjectId.isValid(userId)) {
+//       console.error("getUserChatRooms: Invalid user ID", { userId });
+//       return res.status(400).json({ message: "Invalid user ID" });
+//     }
+
+//     const chatRooms = await ChatRoom.find({
+//       $or: [{ members: userId }, { creator: userId }],
+//     })
+//       .populate("creator", "username profilePicture")
+//       .populate("members", "username profilePicture")
+//       .sort({ lastMessage: -1 });
+//     res.json(chatRooms);
+//   } catch (err) {
+//     console.error("Error in getUserChatRooms:", err);
+//     next(err);
+//   }
+// };
+
+// exports.getRoomMessages = async (req, res, next) => {
+//   try {
+//     const { roomId } = req.params;
+//     const userId = req.user?.userId;
+
+//     // Validate inputs
+//     if (!userId) {
+//       console.error("getRoomMessages: Missing user ID", { reqUser: req.user });
+//       return res
+//         .status(401)
+//         .json({ message: "Authentication required: Missing user ID" });
+//     }
+//     if (!mongoose.Types.ObjectId.isValid(roomId)) {
+//       console.error("getRoomMessages: Invalid room ID", { roomId });
+//       return res.status(400).json({ message: "Invalid room ID" });
+//     }
+//     if (!mongoose.Types.ObjectId.isValid(userId)) {
+//       console.error("getRoomMessages: Invalid user ID", { userId });
+//       return res.status(400).json({ message: "Invalid user ID" });
+//     }
+
+//     const chatRoom = await ChatRoom.findById(roomId);
+//     if (!chatRoom) return res.status(404).json({ message: "Room not found" });
+
+//     if (!chatRoom.isPublic && !chatRoom.members.includes(userId)) {
+//       return res
+//         .status(403)
+//         .json({ message: "Not authorized to view messages" });
+//     }
+
+//     const messages = await Message.find({ room: roomId })
+//       .populate("sender", "username profilePicture")
+//       .sort({ createdAt: 1 });
+//     res.json(messages);
+//   } catch (err) {
+//     console.error("Error in getRoomMessages:", err);
+//     next(err);
+//   }
+// };
+
+// exports.getDirectMessages = async (req, res, next) => {
+//   try {
+//     const { recipientId } = req.params;
+//     const senderId = req.user?.userId;
+
+//     // Validate inputs
+//     if (!senderId) {
+//       console.error("getDirectMessages: Missing sender ID", {
+//         reqUser: req.user,
+//       });
+//       return res
+//         .status(401)
+//         .json({ message: "Authentication required: Missing sender ID" });
+//     }
+//     if (!recipientId) {
+//       console.error("getDirectMessages: Missing recipient ID", { recipientId });
+//       return res.status(400).json({ message: "Missing recipient ID" });
+//     }
+//     if (!mongoose.Types.ObjectId.isValid(senderId)) {
+//       console.error("getDirectMessages: Invalid sender ID", { senderId });
+//       return res.status(400).json({ message: "Invalid sender ID" });
+//     }
+//     if (!mongoose.Types.ObjectId.isValid(recipientId)) {
+//       console.error("getDirectMessages: Invalid recipient ID", { recipientId });
+//       return res.status(400).json({ message: "Invalid recipient ID" });
+//     }
+
+//     const dm = await DirectMessage.findOne({
+//       participants: { $all: [senderId, recipientId] },
+//     }).populate("participants", "username profilePicture");
+
+//     res.json(dm || { messages: [] });
+//   } catch (err) {
+//     console.error("Error in getDirectMessages:", err);
 //     next(err);
 //   }
 // };
 
 const mongoose = require("mongoose");
-const Message = require("../models/Message");
+const jwt = require("jsonwebtoken");
+const { Message, ChatRoom, DirectMessage } = require("../models/chat");
 const User = require("../models/User");
-const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
-const sanitizeHtml = require("sanitize-html");
-const fs = require("fs");
-const sharp = require("sharp"); // For image compression
+const {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+} = require("@aws-sdk/client-s3");
 
-// Initialize S3 Client
 const s3Client = new S3Client({
   region: process.env.AWS_REGION,
   credentials: {
@@ -424,418 +1495,850 @@ const s3Client = new S3Client({
   },
 });
 
-const compressImage = async (buffer, quality = 80) => {
-  return await sharp(buffer).jpeg({ quality }).toBuffer();
-};
-
-exports.getChats = async (req, res, next) => {
+// Authentication middleware
+const authMiddleware = (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) {
+    console.error("authMiddleware: No authentication token provided");
+    return res.status(401).json({ message: "No authentication token" });
+  }
   try {
-    if (!req.user || !req.user.userId)
-      return res.status(401).json({ message: "Unauthorized" });
-    const userId = new mongoose.Types.ObjectId(req.user.userId);
-
-    const chats = await Message.aggregate([
-      {
-        $match: {
-          $or: [{ sender: userId }, { receiver: userId }],
-        },
-      },
-      {
-        $group: {
-          _id: {
-            $cond: [{ $eq: ["$sender", userId] }, "$receiver", "$sender"],
-          },
-          lastMessage: { $last: "$content" },
-          timestamp: { $last: "$createdAt" },
-          unreadCount: {
-            $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $eq: ["$receiver", userId] },
-                    {
-                      $not: {
-                        $gt: [
-                          { $ifNull: ["$isRead." + userId.toString(), false] },
-                          true,
-                        ],
-                      },
-                    },
-                  ],
-                },
-                1,
-                0,
-              ],
-            },
-          },
-        },
-      },
-      {
-        $lookup: {
-          from: "users",
-          localField: "_id",
-          foreignField: "_id",
-          as: "user",
-        },
-      },
-      { $unwind: "$user" },
-      {
-        $unset: ["user.password"],
-      },
-      {
-        $project: {
-          lastMessage: 1,
-          timestamp: 1,
-          unreadCount: 1,
-          user: 1,
-        },
-      },
-    ]);
-    res.json(chats);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!decoded.userId) {
+      console.error("authMiddleware: Invalid token, missing userId", {
+        decoded,
+      });
+      return res.status(401).json({ message: "Invalid token: Missing userId" });
+    }
+    req.user = decoded; // Set req.user with decoded JWT payload
+    console.log("authMiddleware: User authenticated", {
+      userId: decoded.userId,
+    });
+    next();
   } catch (err) {
-    next(err);
+    console.error("authMiddleware: Token verification failed", {
+      error: err.message,
+    });
+    res.status(401).json({ message: "Invalid or expired token" });
   }
 };
 
-exports.getMessages = async (req, res, next) => {
+exports.createChatRoom = async (req, res, next) => {
   try {
-    if (!req.user || !req.user.userId)
-      return res.status(401).json({ message: "Unauthorized" });
-    const userId = new mongoose.Types.ObjectId(req.user.userId);
-    const { userId: targetId, groupId } = req.query;
+    const { name, isPublic, members } = req.body;
+    const creatorId = req.user.userId;
 
-    const query = groupId
-      ? { groupId: new mongoose.Types.ObjectId(groupId), isDeleted: false }
-      : {
-          $or: [
-            { sender: userId, receiver: targetId },
-            { sender: targetId, receiver: userId },
-          ].map((condition) => ({
-            ...condition,
-            ["deletedFor." + userId.toString()]: { $ne: true },
-          })),
-        };
-    const messages = await Message.find(query)
-      .populate("sender", "username profilePicture")
-      .populate("receiver", "username profilePicture")
-      .populate("replyTo", "content")
-      .sort("createdAt");
-    res.json(messages);
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.sendMessage = async (req, res, next) => {
-  try {
-    if (!req.user || !req.user.userId)
-      return res.status(401).json({ message: "Unauthorized" });
-    const senderId = new mongoose.Types.ObjectId(req.user.userId);
-    const {
-      receiverId,
-      groupId,
-      content,
-      type = "one-on-one",
-      expireAfter,
-    } = req.body;
-    const files = req.files || [];
-
-    const receivers =
-      type === "broadcast"
-        ? await User.find().select("_id")
-        : [new mongoose.Types.ObjectId(receiverId)];
-    if (type === "group" && !groupId)
-      return res
-        .status(400)
-        .json({ message: "Group ID required for group chat" });
-
-    let mediaUrls = [];
-    for (const file of files) {
-      const fileName = `gossiphub/chats/${Date.now()}-${file.originalname.replace(
-        /\s+/g,
-        "-"
-      )}`;
-      let buffer = file.buffer;
-      if (file.mimetype.startsWith("image/"))
-        buffer = await compressImage(buffer, 80);
-      const params = {
-        Bucket: process.env.AWS_S3_BUCKET,
-        Key: fileName,
-        Body: buffer,
-        ContentType: file.mimetype,
-      };
-      await s3Client.send(new PutObjectCommand(params));
-      mediaUrls.push(
-        `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`
-      );
+    // Validate creatorId
+    if (!mongoose.Types.ObjectId.isValid(creatorId)) {
+      return res.status(400).json({ message: "Invalid creator ID" });
     }
 
-    const message = new Message({
-      sender: senderId,
-      receiver: receivers,
-      content: sanitizeHtml(content || "", {
-        allowedTags: [],
-        allowedAttributes: {},
-      }),
-      media: mediaUrls,
-      type,
-      groupId: type === "group" ? new mongoose.Types.ObjectId(groupId) : null,
-      expireAt: expireAfter ? new Date(Date.now() + expireAfter * 1000) : null,
-    });
-    await message.save();
+    const user = await User.findById(creatorId);
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-    const populatedMessage = await Message.findById(message._id)
-      .populate("sender", "username profilePicture")
-      .populate("receiver", "username profilePicture");
-    req.app.get("io").emit("newMessage", populatedMessage);
-    res.status(201).json(populatedMessage);
-  } catch (err) {
-    next(err);
-  }
-};
-
-exports.markMessageAsRead = async (req, res, next) => {
-  try {
-    if (!req.user || !req.user.userId)
-      return res.status(401).json({ message: "Unauthorized" });
-    const userId = new mongoose.Types.ObjectId(req.user.userId);
-    const { messageId } = req.params;
-
-    const query = {
-      _id: messageId,
-      receiver: userId,
-    };
-    query["isRead." + userId.toString()] = false; // Dynamic key construction
-
-    const update = {
-      $set: { ["isRead." + userId.toString()]: true },
-    };
-
-    const message = await Message.findOneAndUpdate(query, update, {
-      new: true,
-    }).populate("sender", "username profilePicture");
-    if (!message)
-      return res
-        .status(404)
-        .json({ message: "Message not found or already read" });
-    req.app
-      .get("io")
-      .to(message.sender.toString())
-      .emit("messageSeen", messageId);
-    res.json(message);
-  } catch (err) {
-    console.error("Error in markMessageAsRead:", err.message);
-    next(err);
-  }
-};
-
-exports.deleteMessage = async (req, res, next) => {
-  try {
-    if (!req.user || !req.user.userId)
-      return res.status(401).json({ message: "Unauthorized" });
-    const userId = new mongoose.Types.ObjectId(req.user.userId);
-    const { messageId } = req.params;
-
-    const message = await Message.findById(messageId);
-    if (
-      !message ||
-      (Date.now() - message.createdAt.getTime()) / 1000 >
-        message.deleteTimeLimit
-    )
-      return res
-        .status(400)
-        .json({ message: "Cannot delete message after time limit" });
-
-    if (message.sender.equals(userId)) {
-      message.deletedFor[userId.toString()] = true;
-      if (
-        Object.values(message.deletedFor).every(Boolean) &&
-        message.type === "one-on-one"
-      ) {
-        await Message.deleteOne({ _id: messageId });
-      } else {
-        await message.save();
+    if (!isPublic && members) {
+      const invalidMembers = members.filter(
+        (memberId) =>
+          !mongoose.Types.ObjectId.isValid(memberId) ||
+          (!user.followers.includes(memberId) &&
+            !user.following.includes(memberId))
+      );
+      if (invalidMembers.length > 0) {
+        return res.status(400).json({
+          message: "All members must be valid followers or following",
+        });
       }
-    } else {
-      return res.status(403).json({ message: "Only sender can delete" });
     }
-    req.app
-      .get("io")
-      .to(message.receiver.toString())
-      .emit("messageDeleted", messageId);
-    res.json({ message: "Message deleted" });
+
+    const chatRoom = new ChatRoom({
+      name,
+      isPublic,
+      creator: creatorId,
+      members: isPublic ? [] : [creatorId, ...(members || [])],
+    });
+
+    await chatRoom.save();
+    res.json(chatRoom);
   } catch (err) {
-    console.error("Error in deleteMessage:", err.message);
+    console.error("Error in createChatRoom:", err);
     next(err);
   }
 };
 
-exports.reportMessage = async (req, res, next) => {
+exports.joinChatRoom = async (req, res, next) => {
   try {
-    if (!req.user || !req.user.userId)
-      return res.status(401).json({ message: "Unauthorized" });
-    const { messageId } = req.params;
-    const { reason } = req.body;
+    const { roomId } = req.params;
+    const userId = req.user.userId;
 
-    const message = await Message.findById(messageId);
-    if (!message) return res.status(404).json({ message: "Message not found" });
-
-    // TODO: Implement report storage in a Reports collection
-    res.json({ message: "Message reported successfully" });
-  } catch (err) {
-    console.error("Error in reportMessage:", err.message);
-    next(err);
-  }
-};
-
-exports.blockUser = async (req, res, next) => {
-  try {
-    if (!req.user || !req.user.userId)
-      return res.status(401).json({ message: "Unauthorized" });
-    const { userId: targetId } = req.params;
-    const user = await User.findById(req.user.userId);
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    if (!user.blockedUsers.some((id) => id.equals(targetId))) {
-      user.blockedUsers.push(new mongoose.Types.ObjectId(targetId));
-      await user.save();
+    // Validate inputs
+    if (!mongoose.Types.ObjectId.isValid(roomId)) {
+      return res.status(400).json({ message: "Invalid room ID" });
     }
-    res.json({ message: "User blocked successfully" });
-  } catch (err) {
-    console.error("Error in blockUser:", err.message);
-    next(err);
-  }
-};
-
-exports.unblockUser = async (req, res, next) => {
-  try {
-    if (!req.user || !req.user.userId)
-      return res.status(401).json({ message: "Unauthorized" });
-    const { userId: targetId } = req.params;
-    const user = await User.findById(req.user.userId);
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    if (user.blockedUsers.some((id) => id.equals(targetId))) {
-      await User.findByIdAndUpdate(
-        req.user.userId,
-        { $pull: { blockedUsers: targetId } },
-        { new: true }
-      );
-    } else {
-      return res.status(400).json({ message: "User is not blocked" });
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "Invalid user ID" });
     }
-    res.json({ message: "User unblocked successfully" });
-  } catch (err) {
-    console.error("Error in unblockUser:", err.message);
-    next(err);
-  }
-};
 
-exports.editMessage = async (req, res, next) => {
-  try {
-    if (!req.user || !req.user.userId)
-      return res.status(401).json({ message: "Unauthorized" });
-    const userId = new mongoose.Types.ObjectId(req.user.userId);
-    const { messageId } = req.params;
-    const { content } = req.body;
+    const chatRoom = await ChatRoom.findById(roomId);
+    if (!chatRoom) return res.status(404).json({ message: "Room not found" });
 
-    const message = await Message.findOneAndUpdate(
-      { _id: messageId, sender: userId },
-      { content: sanitizeHtml(content), edited: true, editedContent: content },
-      { new: true }
-    ).populate("sender", "username profilePicture");
-    if (!message)
+    if (!chatRoom.isPublic && !chatRoom.members.includes(userId)) {
       return res
-        .status(404)
-        .json({ message: "Message not found or not authorized" });
-    req.app.get("io").emit("messageEdited", { messageId, content });
-    res.json(message);
+        .status(403)
+        .json({ message: "Not authorized to join this room" });
+    }
+
+    if (!chatRoom.members.includes(userId)) {
+      chatRoom.members.push(userId);
+      await chatRoom.save();
+    }
+
+    res.json(chatRoom);
   } catch (err) {
-    console.error("Error in editMessage:", err.message);
+    console.error("Error in joinChatRoom:", err);
     next(err);
   }
 };
 
-exports.replyToMessage = async (req, res, next) => {
+exports.sendRoomMessage = async (req, res, next) => {
   try {
-    if (!req.user || !req.user.userId)
-      return res.status(401).json({ message: "Unauthorized" });
-    const senderId = new mongoose.Types.ObjectId(req.user.userId);
-    const { receiverId, content, replyTo } = req.body;
+    const { roomId } = req.params;
+    const { content } = req.body;
+    const files = req.files || [];
+    const userId = req.user.userId;
 
+    // Validate inputs
+    if (!roomId || roomId === "null") {
+      return res.status(400).json({ message: "Missing room ID" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(roomId)) {
+      return res.status(400).json({ message: "Invalid room ID" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
+    // Check if room exists
+    const chatRoom = await ChatRoom.findById(roomId);
+    if (!chatRoom) return res.status(404).json({ message: "Room not found" });
+
+    // Check if user is a member
+    if (!chatRoom.members.includes(userId)) {
+      return res.status(403).json({ message: "Not a member of this room" });
+    }
+
+    // Validate sender
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "Sender not found" });
+
+    // Process media uploads
+    const media = [];
+    for (const file of files) {
+      const fileExtension = file.originalname.split(".").pop();
+      const fileName = `gossiphub/chat_media/${Date.now()}-${
+        file.originalname
+      }`;
+      let fileType;
+
+      if (["jpg", "jpeg", "png", "gif"].includes(fileExtension.toLowerCase())) {
+        fileType = "image";
+      } else if (["mp4", "mov", "avi"].includes(fileExtension.toLowerCase())) {
+        fileType = "video";
+      } else if (["mp3", "wav", "ogg"].includes(fileExtension.toLowerCase())) {
+        fileType = "audio";
+      } else {
+        fileType = "file";
+      }
+
+      try {
+        const params = {
+          Bucket: process.env.AWS_S3_BUCKET,
+          Key: fileName,
+          Body: file.buffer,
+          ContentType: file.mimetype,
+        };
+        const command = new PutObjectCommand(params);
+        await s3Client.send(command);
+        media.push({
+          url: `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`,
+          type: fileType,
+        });
+      } catch (uploadError) {
+        console.error("Error uploading media to S3:", uploadError);
+        return res.status(500).json({
+          message: "Failed to upload media to S3",
+          error: uploadError.message,
+        });
+      }
+    }
+
+    if (!content && media.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "Message content or media required" });
+    }
+
+    // Create new message
     const message = new Message({
-      sender: senderId,
-      receiver: [new mongoose.Types.ObjectId(receiverId)],
-      content: sanitizeHtml(content),
-      replyTo: new mongoose.Types.ObjectId(replyTo),
+      sender: userId,
+      content,
+      media,
+      room: roomId,
     });
+
     await message.save();
+    chatRoom.lastMessage = new Date();
+    await chatRoom.save();
 
-    const populatedMessage = await Message.findById(message._id)
-      .populate("sender", "username profilePicture")
-      .populate("replyTo", "content");
-    req.app
-      .get("io")
-      .to(receiverId.toString())
-      .emit("newMessage", populatedMessage);
-    res.status(201).json(populatedMessage);
-  } catch (err) {
-    console.error("Error in replyToMessage:", err.message);
-    next(err);
-  }
-};
-
-exports.forwardMessage = async (req, res, next) => {
-  try {
-    if (!req.user || !req.user.userId)
-      return res.status(401).json({ message: "Unauthorized" });
-    const senderId = new mongoose.Types.ObjectId(req.user.userId);
-    const { messageId, receiverId } = req.body;
-
-    const originalMessage = await Message.findById(messageId);
-    if (!originalMessage)
-      return res.status(404).json({ message: "Original message not found" });
-
-    const newMessage = new Message({
-      sender: senderId,
-      receiver: [new mongoose.Types.ObjectId(receiverId)],
-      content: originalMessage.content,
-      media: originalMessage.media,
-      forwardCount: originalMessage.forwardCount + 1,
-    });
-    await newMessage.save();
-
-    const populatedMessage = await Message.findById(newMessage._id).populate(
+    // Populate message for response
+    const populatedMessage = await Message.findById(message._id).populate(
       "sender",
       "username profilePicture"
     );
-    req.app
-      .get("io")
-      .to(receiverId.toString())
-      .emit("newMessage", populatedMessage);
-    res.status(201).json(populatedMessage);
+    req.io.to(roomId).emit("newMessage", populatedMessage);
+
+    res.json(populatedMessage);
   } catch (err) {
-    console.error("Error in forwardMessage:", err.message);
+    console.error("Error in sendRoomMessage:", err);
     next(err);
   }
 };
 
-exports.starMessage = async (req, res, next) => {
+exports.editRoomMessage = async (req, res, next) => {
   try {
-    if (!req.user || !req.user.userId)
-      return res.status(401).json({ message: "Unauthorized" });
-    const userId = new mongoose.Types.ObjectId(req.user.userId);
-    const { messageId } = req.params;
+    const { roomId, messageId } = req.params;
+    const { content } = req.body;
+    const files = req.files || [];
+    const userId = req.user.userId;
+
+    // Validate inputs
+    if (!mongoose.Types.ObjectId.isValid(roomId)) {
+      return res.status(400).json({ message: "Invalid room ID" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+      return res.status(400).json({ message: "Invalid message ID" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
+    const chatRoom = await ChatRoom.findById(roomId);
+    if (!chatRoom) return res.status(404).json({ message: "Room not found" });
 
     const message = await Message.findById(messageId);
     if (!message) return res.status(404).json({ message: "Message not found" });
-    if (!message.starredBy.includes(userId)) {
-      message.starredBy.push(userId);
-      await message.save();
+
+    if (message.sender.toString() !== userId) {
+      return res
+        .status(403)
+        .json({ message: "Not authorized to edit this message" });
     }
-    res.json(message);
+
+    // Process media uploads
+    const media = [];
+    if (files.length > 0) {
+      // Delete old media from S3
+      for (const oldMedia of message.media) {
+        const oldKey = oldMedia.url.split(
+          `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/`
+        )[1];
+        if (oldKey) {
+          try {
+            await s3Client.send(
+              new DeleteObjectCommand({
+                Bucket: process.env.AWS_S3_BUCKET,
+                Key: oldKey,
+              })
+            );
+          } catch (deleteError) {
+            console.error("Error deleting old media from S3:", deleteError);
+          }
+        }
+      }
+
+      // Upload new media
+      for (const file of files) {
+        const fileExtension = file.originalname.split(".").pop();
+        const fileName = `gossiphub/chat_media/${Date.now()}-${
+          file.originalname
+        }`;
+        let fileType;
+
+        if (
+          ["jpg", "jpeg", "png", "gif"].includes(fileExtension.toLowerCase())
+        ) {
+          fileType = "image";
+        } else if (
+          ["mp4", "mov", "avi"].includes(fileExtension.toLowerCase())
+        ) {
+          fileType = "video";
+        } else if (
+          ["mp3", "wav", "ogg"].includes(fileExtension.toLowerCase())
+        ) {
+          fileType = "audio";
+        } else {
+          fileType = "file";
+        }
+
+        try {
+          const params = {
+            Bucket: process.env.AWS_S3_BUCKET,
+            Key: fileName,
+            Body: file.buffer,
+            ContentType: file.mimetype,
+          };
+          const command = new PutObjectCommand(params);
+          await s3Client.send(command);
+          media.push({
+            url: `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`,
+            type: fileType,
+          });
+        } catch (uploadError) {
+          console.error("Error uploading media to S3:", uploadError);
+          return res.status(500).json({
+            message: "Failed to upload media to S3",
+            error: uploadError.message,
+          });
+        }
+      }
+    } else {
+      media.push(...message.media);
+    }
+
+    if (!content && media.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "Message content or media required" });
+    }
+
+    message.content = content || message.content;
+    message.media = media;
+    message.isEdited = true;
+    await message.save();
+
+    const populatedMessage = await Message.findById(message._id).populate(
+      "sender",
+      "username profilePicture"
+    );
+    req.io.to(roomId).emit("messageEdited", populatedMessage);
+
+    res.json(populatedMessage);
   } catch (err) {
-    console.error("Error in starMessage:", err.message);
+    console.error("Error in editRoomMessage:", err);
     next(err);
   }
 };
+
+exports.deleteRoomMessage = async (req, res, next) => {
+  try {
+    const { roomId, messageId } = req.params;
+    const userId = req.user.userId;
+
+    // Validate inputs
+    if (!mongoose.Types.ObjectId.isValid(roomId)) {
+      return res.status(400).json({ message: "Invalid room ID" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+      return res.status(400).json({ message: "Invalid message ID" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
+    const chatRoom = await ChatRoom.findById(roomId);
+    if (!chatRoom) return res.status(404).json({ message: "Room not found" });
+
+    const message = await Message.findById(messageId);
+    if (!message) return res.status(404).json({ message: "Message not found" });
+
+    if (message.sender.toString() !== userId) {
+      return res
+        .status(403)
+        .json({ message: "Not authorized to delete this message" });
+    }
+
+    // Delete media from S3
+    for (const mediaItem of message.media) {
+      const key = mediaItem.url.split(
+        `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/`
+      )[1];
+      if (key) {
+        try {
+          await s3Client.send(
+            new DeleteObjectCommand({
+              Bucket: process.env.AWS_S3_BUCKET,
+              Key: key,
+            })
+          );
+        } catch (deleteError) {
+          console.error("Error deleting media from S3:", deleteError);
+        }
+      }
+    }
+
+    await Message.findByIdAndDelete(messageId);
+    req.io.to(roomId).emit("messageDeleted", { messageId });
+
+    res.json({ message: "Message deleted successfully" });
+  } catch (err) {
+    console.error("Error in deleteRoomMessage:", err);
+    next(err);
+  }
+};
+
+exports.sendDirectMessage = async (req, res, next) => {
+  try {
+    const { recipientId, content, senderId: providedSenderId } = req.body;
+    const files = req.files || [];
+    const userId = req.user.userId;
+
+    // Validate inputs
+    if (!userId) {
+      console.error("sendDirectMessage: Missing user ID from JWT", {
+        reqUser: req.user,
+      });
+      return res
+        .status(401)
+        .json({ message: "Authentication required: Missing user ID" });
+    }
+    if (providedSenderId && providedSenderId !== userId) {
+      console.error("sendDirectMessage: Sender ID mismatch", {
+        providedSenderId,
+        userId,
+      });
+      return res.status(403).json({ message: "Sender ID mismatch" });
+    }
+    if (!recipientId) {
+      console.error("sendDirectMessage: Missing recipient ID", {
+        body: req.body,
+      });
+      return res.status(400).json({ message: "Missing recipient ID" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      console.error("sendDirectMessage: Invalid sender ID", { userId });
+      return res.status(400).json({ message: "Invalid sender ID" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(recipientId)) {
+      console.error("sendDirectMessage: Invalid recipient ID", { recipientId });
+      return res.status(400).json({ message: "Invalid recipient ID" });
+    }
+
+    // Check if users exist
+    const [sender, recipient] = await Promise.all([
+      User.findById(userId),
+      User.findById(recipientId),
+    ]);
+
+    if (!sender) {
+      console.error("sendDirectMessage: Sender not found", { userId });
+      return res.status(404).json({ message: "Sender not found" });
+    }
+    if (!recipient) {
+      console.error("sendDirectMessage: Recipient not found", { recipientId });
+      return res.status(404).json({ message: "Recipient not found" });
+    }
+
+    // Find or create direct message conversation
+    let dm = await DirectMessage.findOne({
+      participants: { $all: [userId, recipientId] },
+    });
+
+    if (!dm) {
+      dm = new DirectMessage({
+        participants: [userId, recipientId],
+        messages: [],
+      });
+    }
+
+    // Process media uploads
+    const media = [];
+    for (const file of files) {
+      const fileExtension = file.originalname.split(".").pop();
+      const fileName = `gossiphub/chat_media/${Date.now()}-${
+        file.originalname
+      }`;
+      let fileType;
+
+      if (["jpg", "jpeg", "png", "gif"].includes(fileExtension.toLowerCase())) {
+        fileType = "image";
+      } else if (["mp4", "mov", "avi"].includes(fileExtension.toLowerCase())) {
+        fileType = "video";
+      } else if (["mp3", "wav", "ogg"].includes(fileExtension.toLowerCase())) {
+        fileType = "audio";
+      } else {
+        fileType = "file";
+      }
+
+      try {
+        const params = {
+          Bucket: process.env.AWS_S3_BUCKET,
+          Key: fileName,
+          Body: file.buffer,
+          ContentType: file.mimetype,
+        };
+        const command = new PutObjectCommand(params);
+        await s3Client.send(command);
+        media.push({
+          url: `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`,
+          type: fileType,
+        });
+      } catch (uploadError) {
+        console.error("Error uploading media to S3:", uploadError);
+        return res.status(500).json({
+          message: "Failed to upload media to S3",
+          error: uploadError.message,
+        });
+      }
+    }
+
+    if (!content && media.length === 0) {
+      console.error("sendDirectMessage: Missing content and media", {
+        body: req.body,
+      });
+      return res
+        .status(400)
+        .json({ message: "Message content or media required" });
+    }
+
+    // Create new message
+    const newMessage = {
+      sender: userId,
+      content,
+      media,
+      createdAt: new Date(),
+    };
+
+    dm.messages.push(newMessage);
+    dm.lastMessage = new Date();
+    await dm.save();
+
+    // Populate the new message for response
+    const populatedDm = await DirectMessage.findById(dm._id).populate(
+      "participants",
+      "username profilePicture"
+    );
+    const populatedMessage = populatedDm.messages.find(
+      (msg) => msg._id.toString() === newMessage._id.toString()
+    );
+
+    // Emit socket event to both users
+    req.io.to(userId).emit("newDirectMessage", populatedMessage);
+    req.io.to(recipientId).emit("newDirectMessage", populatedMessage);
+
+    res.json(populatedDm);
+  } catch (err) {
+    console.error("Error in sendDirectMessage:", err);
+    next(err);
+  }
+};
+
+exports.editDirectMessage = async (req, res, next) => {
+  try {
+    const { recipientId, messageId } = req.params;
+    const { content } = req.body;
+    const files = req.files || [];
+    const userId = req.user.userId;
+
+    // Validate inputs
+    if (!mongoose.Types.ObjectId.isValid(recipientId)) {
+      console.error("editDirectMessage: Invalid recipient ID", { recipientId });
+      return res.status(400).json({ message: "Invalid recipient ID" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+      console.error("editDirectMessage: Invalid message ID", { messageId });
+      return res.status(400).json({ message: "Invalid message ID" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      console.error("editDirectMessage: Invalid user ID", { userId });
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
+    const dm = await DirectMessage.findOne({
+      participants: { $all: [userId, recipientId] },
+    });
+    if (!dm) return res.status(404).json({ message: "Conversation not found" });
+
+    const message = dm.messages.id(messageId);
+    if (!message) return res.status(404).json({ message: "Message not found" });
+
+    if (message.sender.toString() !== userId) {
+      return res
+        .status(403)
+        .json({ message: "Not authorized to edit this message" });
+    }
+
+    // Process media uploads
+    const media = [];
+    if (files.length > 0) {
+      // Delete old media from S3
+      for (const oldMedia of message.media) {
+        const oldKey = oldMedia.url.split(
+          `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/`
+        )[1];
+        if (oldKey) {
+          try {
+            await s3Client.send(
+              new DeleteObjectCommand({
+                Bucket: process.env.AWS_S3_BUCKET,
+                Key: oldKey,
+              })
+            );
+          } catch (deleteError) {
+            console.error("Error deleting old media from S3:", deleteError);
+          }
+        }
+      }
+
+      // Upload new media
+      for (const file of files) {
+        const fileExtension = file.originalname.split(".").pop();
+        const fileName = `gossiphub/chat_media/${Date.now()}-${
+          file.originalname
+        }`;
+        let fileType;
+
+        if (
+          ["jpg", "jpeg", "png", "gif"].includes(fileExtension.toLowerCase())
+        ) {
+          fileType = "image";
+        } else if (
+          ["mp4", "mov", "avi"].includes(fileExtension.toLowerCase())
+        ) {
+          fileType = "video";
+        } else if (
+          ["mp3", "wav", "ogg"].includes(fileExtension.toLowerCase())
+        ) {
+          fileType = "audio";
+        } else {
+          fileType = "file";
+        }
+
+        try {
+          const params = {
+            Bucket: process.env.AWS_S3_BUCKET,
+            Key: fileName,
+            Body: file.buffer,
+            ContentType: file.mimetype,
+          };
+          const command = new PutObjectCommand(params);
+          await s3Client.send(command);
+          media.push({
+            url: `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`,
+            type: fileType,
+          });
+        } catch (uploadError) {
+          console.error("Error uploading media to S3:", uploadError);
+          return res.status(500).json({
+            message: "Failed to upload media to S3",
+            error: uploadError.message,
+          });
+        }
+      }
+    } else {
+      media.push(...message.media);
+    }
+
+    if (!content && media.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "Message content or media required" });
+    }
+
+    message.content = content || message.content;
+    message.media = media;
+    message.isEdited = true;
+    await dm.save();
+
+    // Emit socket event
+    req.io.to(userId).emit("directMessageEdited", message);
+    req.io.to(recipientId).emit("directMessageEdited", message);
+
+    res.json(dm);
+  } catch (err) {
+    console.error("Error in editDirectMessage:", err);
+    next(err);
+  }
+};
+
+exports.deleteDirectMessage = async (req, res, next) => {
+  try {
+    const { recipientId, messageId } = req.params;
+    const userId = req.user.userId;
+
+    // Validate inputs
+    if (!mongoose.Types.ObjectId.isValid(recipientId)) {
+      console.error("deleteDirectMessage: Invalid recipient ID", {
+        recipientId,
+      });
+      return res.status(400).json({ message: "Invalid recipient ID" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+      console.error("deleteDirectMessage: Invalid message ID", { messageId });
+      return res.status(400).json({ message: "Invalid message ID" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      console.error("deleteDirectMessage: Invalid user ID", { userId });
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
+    const dm = await DirectMessage.findOne({
+      participants: { $all: [userId, recipientId] },
+    });
+    if (!dm) return res.status(404).json({ message: "Conversation not found" });
+
+    const message = dm.messages.id(messageId);
+    if (!message) return res.status(404).json({ message: "Message not found" });
+
+    if (message.sender.toString() !== userId) {
+      return res
+        .status(403)
+        .json({ message: "Not authorized to delete this message" });
+    }
+
+    // Delete media from S3
+    for (const mediaItem of message.media) {
+      const key = mediaItem.url.split(
+        `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/`
+      )[1];
+      if (key) {
+        try {
+          await s3Client.send(
+            new DeleteObjectCommand({
+              Bucket: process.env.AWS_S3_BUCKET,
+              Key: key,
+            })
+          );
+        } catch (deleteError) {
+          console.error("Error deleting media from S3:", deleteError);
+        }
+      }
+    }
+
+    // Remove the message from the messages array
+    dm.messages.pull({ _id: messageId });
+    await dm.save();
+
+    // Emit socket event
+    req.io.to(userId).emit("directMessageDeleted", { messageId });
+    req.io.to(recipientId).emit("directMessageDeleted", { messageId });
+
+    res.json({ message: "Message deleted successfully" });
+  } catch (err) {
+    console.error("Error in deleteDirectMessage:", err);
+    next(err);
+  }
+};
+
+exports.getUserChatRooms = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+
+    // Validate userId
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      console.error("getUserChatRooms: Invalid user ID", { userId });
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
+    const chatRooms = await ChatRoom.find({
+      $or: [{ members: userId }, { creator: userId }],
+    })
+      .populate("creator", "username profilePicture")
+      .populate("members", "username profilePicture")
+      .sort({ lastMessage: -1 });
+    res.json(chatRooms);
+  } catch (err) {
+    console.error("Error in getUserChatRooms:", err);
+    next(err);
+  }
+};
+
+exports.getRoomMessages = async (req, res, next) => {
+  try {
+    const { roomId } = req.params;
+    const userId = req.user.userId;
+
+    // Validate inputs
+    if (!mongoose.Types.ObjectId.isValid(roomId)) {
+      console.error("getRoomMessages: Invalid room ID", { roomId });
+      return res.status(400).json({ message: "Invalid room ID" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      console.error("getRoomMessages: Invalid user ID", { userId });
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
+    const chatRoom = await ChatRoom.findById(roomId);
+    if (!chatRoom) return res.status(404).json({ message: "Room not found" });
+
+    if (!chatRoom.isPublic && !chatRoom.members.includes(userId)) {
+      return res
+        .status(403)
+        .json({ message: "Not authorized to view messages" });
+    }
+
+    const messages = await Message.find({ room: roomId })
+      .populate("sender", "username profilePicture")
+      .sort({ createdAt: 1 });
+    res.json(messages);
+  } catch (err) {
+    console.error("Error in getRoomMessages:", err);
+    next(err);
+  }
+};
+
+exports.getDirectMessages = async (req, res, next) => {
+  try {
+    const { recipientId } = req.params;
+    const userId = req.user.userId;
+    const providedSenderId = req.query.senderId;
+
+    // Validate inputs
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      console.error("getDirectMessages: Invalid user ID from JWT", { userId });
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+    if (providedSenderId && providedSenderId !== userId) {
+      console.error("getDirectMessages: Sender ID mismatch", {
+        providedSenderId,
+        userId,
+      });
+      return res.status(403).json({ message: "Sender ID mismatch" });
+    }
+    if (!recipientId) {
+      console.error("getDirectMessages: Missing recipient ID", { recipientId });
+      return res.status(400).json({ message: "Missing recipient ID" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(recipientId)) {
+      console.error("getDirectMessages: Invalid recipient ID", { recipientId });
+      return res.status(400).json({ message: "Invalid recipient ID" });
+    }
+
+    // Check if users exist
+    const [sender, recipient] = await Promise.all([
+      User.findById(userId),
+      User.findById(recipientId),
+    ]);
+
+    if (!sender) {
+      console.error("getDirectMessages: Sender not found", { userId });
+      return res.status(404).json({ message: "Sender not found" });
+    }
+    if (!recipient) {
+      console.error("getDirectMessages: Recipient not found", { recipientId });
+      return res.status(404).json({ message: "Recipient not found" });
+    }
+
+    const dm = await DirectMessage.findOne({
+      participants: { $all: [userId, recipientId] },
+    }).populate("participants", "username profilePicture");
+
+    res.json(dm || { messages: [] });
+  } catch (err) {
+    console.error("Error in getDirectMessages:", err, {
+      userId: req.user?.userId,
+    });
+    next(err);
+  }
+};
+
+// Export the middleware for use in routes
+exports.authMiddleware = authMiddleware;
