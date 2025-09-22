@@ -2419,18 +2419,98 @@ exports.createPost = async (req, res, next) => {
 };
 
 // ================= Get All Posts (Optimized) =================
+// exports.getPosts = async (req, res, next) => {
+//   try {
+//     const { hashtag, page = 1, limit = 5 } = req.query;
+//     const query = { isFlagged: false };
+
+//     if (hashtag) {
+//       query.hashtags = hashtag.toLowerCase();
+//     }
+
+//     // ✅ Fetch only required fields
+//     const posts = await Post.find(query)
+//       .select("title slug description media author category hashtags createdAt")
+//       .populate("author", "username") // only username
+//       .sort({ createdAt: -1 })
+//       .skip((page - 1) * limit)
+//       .limit(Number(limit))
+//       .lean();
+
+//     const totalPosts = await Post.countDocuments(query);
+
+//     res.json({
+//       total: totalPosts,
+//       page: Number(page),
+//       limit: Number(limit),
+//       totalPages: Math.ceil(totalPosts / limit),
+//       posts,
+//     });
+//   } catch (err) {
+//     console.error("Error in getPosts:", err);
+//     next(err);
+//   }
+// };
+
+// // ================= Get Posts by Hashtag (Optimized) =================
+// exports.getPostsByHashtag = async (req, res, next) => {
+//   const { hashtag } = req.params;
+//   const { page = 1, limit = 5 } = req.query;
+
+//   try {
+//     const query = {
+//       hashtags: hashtag.toLowerCase(),
+//       isFlagged: false,
+//     };
+
+//     const posts = await Post.find(query)
+//       .select("title slug description media author category hashtags createdAt")
+//       .populate("author", "username")
+//       .sort({ createdAt: -1 })
+//       .skip((page - 1) * limit)
+//       .limit(Number(limit))
+//       .lean();
+
+//     const totalPosts = await Post.countDocuments(query);
+
+//     res.json({
+//       total: totalPosts,
+//       page: Number(page),
+//       limit: Number(limit),
+//       totalPages: Math.ceil(totalPosts / limit),
+//       posts,
+//     });
+//   } catch (err) {
+//     console.error("Error in getPostsByHashtag:", err);
+//     next(err);
+//   }
+// };
+
+// ================= Get All Posts (Optimized with Search) =================
 exports.getPosts = async (req, res, next) => {
   try {
-    const { hashtag, page = 1, limit = 10 } = req.query;
+    const { hashtag, search, page = 1, limit = 5 } = req.query;
     const query = { isFlagged: false };
 
+    // 🔹 Hashtag filter
     if (hashtag) {
       query.hashtags = hashtag.toLowerCase();
     }
 
+    // 🔹 Search filter (title, description, category lo match)
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+        { category: { $regex: search, $options: "i" } },
+        { hashtags: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // ✅ Fetch only required fields
     const posts = await Post.find(query)
-      .populate("author", "username")
-      .populate("comments.author", "username")
+      .select("title slug description media author category hashtags createdAt")
+      .populate("author", "username") // only username
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(Number(limit))
@@ -2447,6 +2527,49 @@ exports.getPosts = async (req, res, next) => {
     });
   } catch (err) {
     console.error("Error in getPosts:", err);
+    next(err);
+  }
+};
+
+// ================= Get Posts by Hashtag (Optimized) =================
+exports.getPostsByHashtag = async (req, res, next) => {
+  const { hashtag } = req.params;
+  const { search, page = 1, limit = 5 } = req.query;
+
+  try {
+    const query = {
+      hashtags: hashtag.toLowerCase(),
+      isFlagged: false,
+    };
+
+    // 🔹 Search filter inside hashtag route also
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+        { category: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const posts = await Post.find(query)
+      .select("title slug description media author category hashtags createdAt")
+      .populate("author", "username")
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit))
+      .lean();
+
+    const totalPosts = await Post.countDocuments(query);
+
+    res.json({
+      total: totalPosts,
+      page: Number(page),
+      limit: Number(limit),
+      totalPages: Math.ceil(totalPosts / limit),
+      posts,
+    });
+  } catch (err) {
+    console.error("Error in getPostsByHashtag:", err);
     next(err);
   }
 };
@@ -2486,37 +2609,37 @@ exports.getPostById = async (req, res, next) => {
 };
 
 // ================= Get Posts by Hashtag (Optimized) =================
-exports.getPostsByHashtag = async (req, res, next) => {
-  const { hashtag } = req.params;
-  const { page = 1, limit = 10 } = req.query;
-  try {
-    const query = {
-      hashtags: hashtag.toLowerCase(),
-      isFlagged: false,
-    };
+// exports.getPostsByHashtag = async (req, res, next) => {
+//   const { hashtag } = req.params;
+//   const { page = 1, limit = 10 } = req.query;
+//   try {
+//     const query = {
+//       hashtags: hashtag.toLowerCase(),
+//       isFlagged: false,
+//     };
 
-    const posts = await Post.find(query)
-      .populate("author", "username")
-      .populate("comments.author", "username")
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(Number(limit))
-      .lean();
+//     const posts = await Post.find(query)
+//       .populate("author", "username")
+//       .populate("comments.author", "username")
+//       .sort({ createdAt: -1 })
+//       .skip((page - 1) * limit)
+//       .limit(Number(limit))
+//       .lean();
 
-    const totalPosts = await Post.countDocuments(query);
+//     const totalPosts = await Post.countDocuments(query);
 
-    res.json({
-      total: totalPosts,
-      page: Number(page),
-      limit: Number(limit),
-      totalPages: Math.ceil(totalPosts / limit),
-      posts,
-    });
-  } catch (err) {
-    console.error("Error in getPostsByHashtag:", err);
-    next(err);
-  }
-};
+//     res.json({
+//       total: totalPosts,
+//       page: Number(page),
+//       limit: Number(limit),
+//       totalPages: Math.ceil(totalPosts / limit),
+//       posts,
+//     });
+//   } catch (err) {
+//     console.error("Error in getPostsByHashtag:", err);
+//     next(err);
+//   }
+// };
 
 // ================= Get Hashtags =================
 exports.getHashtags = async (req, res, next) => {
