@@ -2531,6 +2531,49 @@ exports.getPosts = async (req, res, next) => {
   }
 };
 
+// ================= Get Posts by Category (New Route) =================
+exports.getPostsByCategory = async (req, res, next) => {
+  const { category } = req.params;
+  const { search, page = 1, limit = 5 } = req.query;
+
+  try {
+    const query = {
+      category: { $regex: category, $options: "i" }, // Case-insensitive
+      isFlagged: false,
+    };
+
+    // 🔹 Search filter within category
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+        { hashtags: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const posts = await Post.find(query)
+      .select("title slug description media author category hashtags createdAt")
+      .populate("author", "username")
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit))
+      .lean();
+
+    const totalPosts = await Post.countDocuments(query);
+
+    res.json({
+      total: totalPosts,
+      page: Number(page),
+      limit: Number(limit),
+      totalPages: Math.ceil(totalPosts / limit),
+      posts,
+    });
+  } catch (err) {
+    console.error("Error in getPostsByCategory:", err);
+    next(err);
+  }
+};
+
 // ================= Get Posts by Hashtag (Optimized) =================
 exports.getPostsByHashtag = async (req, res, next) => {
   const { hashtag } = req.params;

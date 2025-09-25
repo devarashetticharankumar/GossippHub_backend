@@ -121,6 +121,7 @@ const {
   getPostById,
   getPostsByHashtag,
   getHashtags,
+  getPostsByCategory,
 } = require("../controllers/postController");
 const { auth } = require("../middleware/authMiddleware");
 
@@ -132,6 +133,7 @@ const router = express.Router();
 // Specific routes before dynamic routes
 router.get("/hashtags", getHashtags);
 router.get("/hashtag/:hashtag", getPostsByHashtag);
+router.get("/category/:category", getPostsByCategory); // New route
 router.get("/", getPosts);
 router.get("/:postId", getPostById);
 router.post("/", [auth, upload.single("media")], createPost);
