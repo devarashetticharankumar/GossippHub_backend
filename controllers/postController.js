@@ -2538,11 +2538,10 @@ exports.getPostsByCategory = async (req, res, next) => {
 
   try {
     const query = {
-      category: { $regex: category, $options: "i" }, // Case-insensitive
+      category: { $regex: category, $options: "i" },
       isFlagged: false,
     };
 
-    // 🔹 Search filter within category
     if (search) {
       query.$or = [
         { title: { $regex: search, $options: "i" } },
