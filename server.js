@@ -352,6 +352,7 @@ const userRoutes = require("./routes/user");
 const chatRoutes = require("./routes/chatRoutes");
 const storyRoutes = require("./routes/storyRoutes");
 const sitemapRouter = require("./routes/sitemap");
+const shortRoutes = require("./routes/shortRoutes");
 
 const app = express();
 const server = http.createServer(app);
@@ -394,6 +395,7 @@ app.use("/api/users", userRoutes);
 app.use("/api", sponsoredAdRoutes);
 app.use("/api/chat", chatRoutes.router);
 app.use("/", sitemapRouter);
+app.use("/api/shorts", shortRoutes);
 
 // Error Handling
 app.use(errorHandler);
