@@ -377,10 +377,11 @@ app.use(express.json());
 // Serve static files from public folder
 app.use(express.static(path.join(__dirname, "public")));
 
-// Route for robots.txt
-app.get("/robots.txt", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "robots.txt"));
-});
+// // Route for robots.txt
+// app.get("/robots.txt", (req, res) => {
+//   console.log("robots.txt requested"); // debug
+//   res.sendFile(path.join(__dirname, "public", "robots.txt"));
+// });
 
 // MongoDB Connection
 mongoose
@@ -406,6 +407,10 @@ app.use("/api/chat", chatRoutes.router);
 app.use("/", sitemapRouter);
 app.use("/api/shorts", shortRoutes);
 
+// Serve robots.txt explicitly (optional, works even if not in public)
+app.get("/robots.txt", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "robots.txt"));
+});
 // Error Handling
 app.use(errorHandler);
 
