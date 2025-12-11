@@ -353,6 +353,7 @@ const chatRoutes = require("./routes/chatRoutes");
 const storyRoutes = require("./routes/storyRoutes");
 const sitemapRouter = require("./routes/sitemap");
 const shortRoutes = require("./routes/shortRoutes");
+const path = require("path");
 
 const app = express();
 const server = http.createServer(app);
@@ -372,6 +373,14 @@ app.set("io", io); // Store io in app for access in routes
 // Middleware
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// Serve static files from public folder
+app.use(express.static(path.join(__dirname, "public")));
+
+// Route for robots.txt
+app.get("/robots.txt", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "robots.txt"));
+});
 
 // MongoDB Connection
 mongoose
