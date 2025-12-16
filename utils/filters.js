@@ -1,14 +1,11 @@
-let filter;
+// Standard CommonJS import for bad-words v3
+const Filter = require("bad-words");
 
-// Dynamically import bad-words to handle ESM in CommonJS
-async function initializeFilter() {
+function initializeFilter() {
   try {
-    const { default: Filter } = await import("bad-words");
     filter = new Filter();
     // Add custom words for filtering (e.g., platform-specific or Telugu terms)
     filter.addWords("ni amma", "lanjakodaka");
-    // TODO: Add Telugu-specific inappropriate words if needed
-    // filter.addWords('telugubadword1', 'telugubadword2');
   } catch (err) {
     console.error("Failed to initialize bad-words filter:", err);
     // Fallback to a dummy filter that allows all content
