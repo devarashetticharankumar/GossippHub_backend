@@ -128,7 +128,7 @@ sitemapRouter.get("/sitemap.xml", async (req, res) => {
 
     // Add Dynamic Post Pages
     posts.forEach((post) => {
-      const postId = post._id ? post._id.toString() : "unknown";
+      const postId = post.slug || (post._id ? post._id.toString() : "unknown");
       sitemap
         .ele("url")
         .ele("loc", `${baseUrl}/posts/${postId}`)

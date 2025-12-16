@@ -51,7 +51,7 @@ const postSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 });
 
-module.exports = mongoose.model("Post", postSchema);
+module.exports = mongoose.models.Post || mongoose.model("Post", postSchema);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////#hastag implemented code
 
