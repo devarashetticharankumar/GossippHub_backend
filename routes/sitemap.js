@@ -111,7 +111,7 @@ sitemapRouter.get("/sitemap.xml", async (req, res) => {
       { url: "/about", updatedAt: new Date().toISOString() },
       { url: "/contact", updatedAt: new Date().toISOString() },
       { url: "/privacy", updatedAt: new Date().toISOString() },
-      { url: "/trems", updatedAt: new Date().toISOString() },
+      { url: "/terms", updatedAt: new Date().toISOString() },
     ];
     staticPages.forEach((page) => {
       sitemap
