@@ -3,6 +3,8 @@ const Post = require("../models/post");
 const Report = require("../models/Report");
 const User = require("../models/User");
 
+const Short = require("../models/Short");
+
 exports.moderatePost = async (req, res, next) => {
   const { postId } = req.params;
   const { action } = req.body;
@@ -55,8 +57,9 @@ exports.getAnalytics = async (req, res, next) => {
   try {
     const totalUsers = await User.countDocuments();
     const totalPosts = await Post.countDocuments();
+    const totalShorts = await Short.countDocuments();
     const flaggedPosts = await Post.countDocuments({ isFlagged: true });
-    res.json({ totalUsers, totalPosts, flaggedPosts });
+    res.json({ totalUsers, totalPosts, totalShorts, flaggedPosts });
   } catch (err) {
     next(err);
   }

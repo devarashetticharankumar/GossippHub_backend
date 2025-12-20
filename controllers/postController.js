@@ -2071,7 +2071,7 @@ exports.createPost = async (req, res, next) => {
 // ================= Get All Posts (Optimized with Search) =================
 exports.getPosts = async (req, res, next) => {
   try {
-    const { hashtag, search, page = 1, limit = 5 } = req.query;
+    const { hashtag, search, category, authorId, page = 1, limit = 5 } = req.query;
     const query = { isFlagged: false };
 
     // 🔹 Hashtag filter
@@ -2079,14 +2079,20 @@ exports.getPosts = async (req, res, next) => {
       query.hashtags = hashtag.toLowerCase();
     }
 
+    // 🔹 Author filter
+    if (authorId) {
+      query.author = authorId;
+    }
+
+    // 🔹 Category filter
+    if (category && category !== "All") {
+      query.category = { $regex: `^${category}$`, $options: "i" };
+    }
+
     // 🔹 Search filter (title, description, category lo match)
+    // 🔹 Search filter (Only Title)
     if (search) {
-      query.$or = [
-        { title: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } },
-        { category: { $regex: search, $options: "i" } },
-        { hashtags: { $regex: search, $options: "i" } },
-      ];
+      query.title = { $regex: search, $options: "i" };
     }
 
     // ✅ Fetch only required fields
