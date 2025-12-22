@@ -39,6 +39,9 @@ app.set("io", io); // Store io in app for access in routes
 app.use(cors(corsOptions));
 app.use(express.json());
 
+// Sitemap route (must be before static files to ensure precedence)
+app.use("/", sitemapRouter);
+
 // Serve static files from public folder
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -69,7 +72,6 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api", sponsoredAdRoutes);
 app.use("/api/chat", chatRoutes.router);
-app.use("/", sitemapRouter);
 app.use("/api/shorts", shortRoutes);
 
 // Serve robots.txt explicitly (optional, works even if not in public)

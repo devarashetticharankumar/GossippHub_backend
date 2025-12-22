@@ -127,24 +127,36 @@ sitemapRouter.get("/sitemap.xml", async (req, res) => {
     });
 
     // Add Dynamic Post Pages
-    posts.forEach((post) => {
-      const postId = post.slug || (post._id ? post._id.toString() : "unknown");
-      sitemap
-        .ele("url")
-        .ele("loc", `${baseUrl}/posts/${postId}`)
-        .up()
-        .ele(
-          "lastmod",
-          post.updatedAt
-            ? post.updatedAt.toISOString()
-            : new Date().toISOString()
-        )
-        .up()
-        .ele("changefreq", "daily")
-        .up()
-        .ele("priority", "0.9")
-        .up();
-    });
+    if (posts && Array.isArray(posts)) {
+      posts.forEach((post) => {
+        const postId = post.slug || (post._id ? post._id.toString() : "unknown");
+        let lastMod;
+
+        try {
+          if (post.updatedAt instanceof Date) {
+            lastMod = post.updatedAt.toISOString();
+          } else if (post.updatedAt) {
+            lastMod = new Date(post.updatedAt).toISOString();
+          } else {
+            lastMod = new Date().toISOString();
+          }
+        } catch (e) {
+          console.error(`Invalid date for post ${postId}:`, post.updatedAt);
+          lastMod = new Date().toISOString();
+        }
+
+        sitemap
+          .ele("url")
+          .ele("loc", `${baseUrl}/posts/${postId}`)
+          .up()
+          .ele("lastmod", lastMod)
+          .up()
+          .ele("changefreq", "daily")
+          .up()
+          .ele("priority", "0.9")
+          .up();
+      });
+    }
 
     // Add API-related static pages
     // const apiStaticPages = [
@@ -168,8 +180,8 @@ sitemapRouter.get("/sitemap.xml", async (req, res) => {
     res.header("Content-Type", "application/xml");
     res.send(sitemap.end({ pretty: true }));
   } catch (error) {
-    console.error("Error generating sitemap:", error.message);
-    res.status(500).send(`Error generating sitemap: ${error.message}`);
+    console.error("CRITICAL SITEMAP ERROR:", error);
+    res.status(500).send(`Error generating sitemap: ${error.message}\nStack: ${error.stack}`);
   }
 });
 
